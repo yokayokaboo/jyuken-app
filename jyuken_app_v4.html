@@ -190,9 +190,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
         </div>
         <!-- 学校・回チェックボックス -->
         <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">表示する学校・回</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           <button onclick="ganttSelectAll(true)" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);cursor:pointer">全選択</button>
           <button onclick="ganttSelectAll(false)" style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);cursor:pointer">全解除</button>
+          <div style="display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid var(--border2)">
+            <button id="sort-btn-school" onclick="setGanttSort('school')" style="font-size:11px;padding:4px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer">学校順</button>
+            <button id="sort-btn-date" onclick="setGanttSort('date')" style="font-size:11px;padding:4px 10px;border:none;background:var(--surface2);color:var(--text2);cursor:pointer">日付順</button>
+          </div>
         </div>
         <div id="gantt-checks" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto"></div>
       </div>
@@ -615,6 +619,17 @@ function schoolCard(s){
 // ── ガント ──
 // 選択状態管理: { 'schoolId_roundNo': true/false }
 let ganttChecks = {};
+let ganttSort = 'school'; // 'school' | 'date'
+
+function setGanttSort(mode){
+  ganttSort = mode;
+  document.getElementById('sort-btn-school').style.background = mode==='school'?'var(--accent)':'var(--surface2)';
+  document.getElementById('sort-btn-school').style.color = mode==='school'?'#fff':'var(--text2)';
+  document.getElementById('sort-btn-date').style.background = mode==='date'?'var(--accent)':'var(--surface2)';
+  document.getElementById('sort-btn-date').style.color = mode==='date'?'#fff':'var(--text2)';
+  renderGanttControls();
+  renderGanttChart();
+}
 
 function ganttCheckKey(schoolId, roundNo){ return `${schoolId}_${roundNo}`; }
 
@@ -622,8 +637,30 @@ function renderGanttControls(){
   const cont = document.getElementById('gantt-checks');
   if(!cont) return;
   cont.innerHTML = '';
-  schools.forEach(s => {
-    const activeRounds = s.rounds.filter(r => r.exam || r.apply || r.result || r.procedure);
+  // ソートモードに応じて学校・回の順序を決定
+  let displayItems; // [{s, rounds}]
+  if(ganttSort === 'date'){
+    // 日付順：全(school,round)ペアを受験日でフラット化してソート
+    const pairs = [];
+    schools.forEach(s => {
+      s.rounds.filter(r => r.exam||r.apply||r.result||r.procedure).forEach(r => {
+        const examMs = r.exam ? new Date(r.exam+'T00:00').getTime() : Infinity;
+        const slotOrder = r.examTime?.includes('午後')&&r.examTime?.includes('午前')?1:r.examTime?.includes('午前')?0:r.examTime?.includes('午後')?2:r.examTime?.includes('夜')?3:4;
+        pairs.push({s, r, examMs, slotOrder});
+      });
+    });
+    pairs.sort((a,b) => a.examMs!==b.examMs ? a.examMs-b.examMs : a.slotOrder-b.slotOrder);
+    // 日付順では学校ごとのグループではなく、(school,round)ごとに1行ずつ表示
+    // チェックボックスも(school,round)単位で並べる
+    displayItems = pairs.map(p => ({s: p.s, rounds: [p.r]}));
+  } else {
+    // 学校順：school単位でグループ
+    displayItems = schools
+      .filter(s => s.rounds.some(r => r.exam||r.apply||r.result||r.procedure))
+      .map(s => ({s, rounds: s.rounds.filter(r => r.exam||r.apply||r.result||r.procedure)}));
+  }
+
+  displayItems.forEach(({s, rounds: activeRounds}) => {
     if(!activeRounds.length) return;
     const schoolDiv = document.createElement('div');
     schoolDiv.style.cssText = 'background:var(--surface2);border-radius:8px;padding:8px 10px';
@@ -737,16 +774,32 @@ function renderGanttChart(){
   const todayD = today();
 
   // 表示対象の (school, round) ペアを収集
+  // ソートモードに応じてtargetsを構築
   const targets = [];
-  schools.forEach(s => {
-    s.rounds.forEach(r => {
-      // ganttChecksに登録済み かつ true のもののみ表示
-      const key = ganttCheckKey(s.id, r.no);
-      if(ganttChecks[key] !== true) return;
-      if(!r.exam && !r.apply && !r.result && !r.procedure) return;
-      targets.push({s, r});
+  if(ganttSort === 'date'){
+    const pairs = [];
+    schools.forEach(s => {
+      s.rounds.forEach(r => {
+        const key = ganttCheckKey(s.id, r.no);
+        if(ganttChecks[key] !== true) return;
+        if(!r.exam && !r.apply && !r.result && !r.procedure) return;
+        const examMs = r.exam ? new Date(r.exam+'T00:00').getTime() : Infinity;
+        const slotOrder = r.examTime?.includes('午後')&&r.examTime?.includes('午前')?1:r.examTime?.includes('午前')?0:r.examTime?.includes('午後')?2:r.examTime?.includes('夜')?3:4;
+        pairs.push({s, r, examMs, slotOrder});
+      });
     });
-  });
+    pairs.sort((a,b) => a.examMs!==b.examMs ? a.examMs-b.examMs : a.slotOrder-b.slotOrder);
+    pairs.forEach(p => targets.push({s:p.s, r:p.r}));
+  } else {
+    schools.forEach(s => {
+      s.rounds.forEach(r => {
+        const key = ganttCheckKey(s.id, r.no);
+        if(ganttChecks[key] !== true) return;
+        if(!r.exam && !r.apply && !r.result && !r.procedure) return;
+        targets.push({s, r});
+      });
+    });
+  }
 
   if(!targets.length){
     wrap.innerHTML='<div style="color:var(--text3);font-size:13px;padding:20px 0">表示する学校・回を選択してください</div>';
