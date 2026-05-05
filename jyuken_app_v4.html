@@ -411,7 +411,18 @@ function fetchSheetJsonp(sheetId){
           if(!row.c || !row.c[0] || !row.c[0].v) return;
           const get = (i) => {
             const c = row.c && row.c[i];
-            return c && c.v !== null && c.v !== undefined ? String(c.v) : '';
+            if(!c || c.v === null || c.v === undefined) return '';
+            // Google Sheets APIは日付をDateオブジェクトで返すことがある
+            if(typeof c.v === 'object' && c.v instanceof Date) {
+              const d = c.v;
+              return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            }
+            // Date(year,month,day)形式の文字列の場合も変換
+            if(typeof c.v === 'string' && c.v.startsWith('Date(')) {
+              const m = c.v.match(/Date\((\d+),(\d+),(\d+)\)/);
+              if(m) return `${m[1]}-${String(parseInt(m[2])+1).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+            }
+            return String(c.v);
           };
           const rounds = [];
           for(let r=0; r<MAX_ROUNDS; r++){
@@ -673,6 +684,11 @@ function examTimeColor(examTime){
 }
 
 function renderGantt(){
+  // まず全roundをtrueで初期化（未登録のものがチャートに漏れないよう）
+  schools.forEach(s => s.rounds.forEach(r => {
+    const key = ganttCheckKey(s.id, r.no);
+    if(ganttChecks[key] === undefined) ganttChecks[key] = true;
+  }));
   renderGanttControls();
   renderGanttChart();
 }
@@ -707,7 +723,9 @@ function renderGanttChart(){
   const targets = [];
   schools.forEach(s => {
     s.rounds.forEach(r => {
-      if(ganttChecks[ganttCheckKey(s.id,r.no)] === false) return;
+      // ganttChecksに登録済み かつ true のもののみ表示
+      const key = ganttCheckKey(s.id, r.no);
+      if(ganttChecks[key] !== true) return;
       if(!r.exam && !r.apply && !r.result && !r.procedure) return;
       targets.push({s, r});
     });
