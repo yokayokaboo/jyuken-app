@@ -22,6 +22,16 @@
   --radius:14px;--radius-sm:8px;
   --safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);
 }
+[data-theme="light"]{
+  --bg:#f0f2f8;--surface:#ffffff;--surface2:#f0f2f8;--surface3:#e2e6f0;
+  --accent:#5a4fd4;--accent2:#5a4fd4;--accent-soft:rgba(90,79,212,0.10);
+  --green:#1a8f5a;--green-soft:rgba(26,143,90,0.10);
+  --amber:#b07800;--amber-soft:rgba(176,120,0,0.10);
+  --red:#c0392b;--red-soft:rgba(192,57,43,0.10);
+  --blue:#1a6fc0;--blue-soft:rgba(26,111,192,0.10);
+  --text:#1a1a2e;--text2:#4a4a6a;--text3:#8888a8;
+  --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.15);
+}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;overflow-x:hidden;font-size:14px;line-height:1.5}
 #app{display:flex;flex-direction:column;min-height:100dvh}
@@ -73,7 +83,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .alert-banner{background:var(--red-soft);border:1px solid rgba(240,96,96,.3);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--red);display:flex;gap:8px;align-items:flex-start}
 .alert-banner svg{flex-shrink:0;margin-top:1px}
 .alert-list{list-style:none;display:flex;flex-direction:column;gap:3px}
-.summary-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+.summary-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
 .summary-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px}
 .summary-card .s-label{font-size:10px;color:var(--text3);margin-bottom:4px}
 .summary-card .s-value{font-size:20px;font-weight:700;font-family:'DM Mono',monospace}
@@ -172,11 +182,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
           <div>
             <div style="font-size:10px;color:var(--text3);margin-bottom:4px">From</div>
-            <input type="date" id="gantt-from" value="2027-01-10" class="form-input-sm" style="width:100%" onchange="renderGantt()">
+            <input type="date" id="gantt-from" class="form-input-sm" style="width:100%" onchange="renderGantt()">
           </div>
           <div>
             <div style="font-size:10px;color:var(--text3);margin-bottom:4px">To</div>
-            <input type="date" id="gantt-to" value="2027-02-20" class="form-input-sm" style="width:100%" onchange="renderGantt()">
+            <input type="date" id="gantt-to" class="form-input-sm" style="width:100%" onchange="renderGantt()">
           </div>
         </div>
         <!-- 凡例 -->
@@ -199,6 +209,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
           </div>
         </div>
         <div id="gantt-checks" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto"></div>
+        <div id="gantt-cost-summary" style="margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;display:none">
+          <div style="color:var(--text3);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">選択中の費用合計</div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <div><span style="color:var(--text2)">受験費用：</span><span id="gantt-exam-fee" style="font-weight:600;font-family:'DM Mono',monospace">-</span></div>
+            <div><span style="color:var(--text2)">入学手続費用：</span><span id="gantt-proc-fee" style="font-weight:600;font-family:'DM Mono',monospace">-</span></div>
+          </div>
+        </div>
       </div>
     </div>
     <!-- チャート本体 -->
@@ -224,6 +241,33 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
       <div id="conn-error" style="color:var(--red);font-size:12px;margin-top:8px;display:none"></div>
     </div>
 
+    <div class="section-title">テーマ</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="setting-row" style="cursor:default">
+        <div><div class="setting-label">カラーテーマ</div><div class="setting-sub">ダーク / ライト</div></div>
+        <div style="display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border2)">
+          <button id="theme-dark-btn" onclick="setTheme('dark')" style="padding:6px 14px;font-size:12px;font-family:'Noto Sans JP',sans-serif;border:none;cursor:pointer;transition:all .15s">🌙 ダーク</button>
+          <button id="theme-light-btn" onclick="setTheme('light')" style="padding:6px 14px;font-size:12px;font-family:'Noto Sans JP',sans-serif;border:none;cursor:pointer;transition:all .15s">☀️ ライト</button>
+        </div>
+      </div>
+    </div>
+    <div class="section-title">チャート期間の初期値</div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="padding:14px 16px">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">チャートを開いたときのデフォルト期間を設定します</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:5px">From（初期開始日）</div>
+            <input type="date" id="setting-gantt-from" class="form-input" style="font-size:13px;padding:8px 10px" onchange="saveGanttDefaults()">
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:5px">To（初期終了日）</div>
+            <input type="date" id="setting-gantt-to" class="form-input" style="font-size:13px;padding:8px 10px" onchange="saveGanttDefaults()">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px">変更するとチャートの初期値に反映されます</div>
+      </div>
+    </div>
     <div class="section-title">手動編集</div>
     <div class="card" style="margin-bottom:16px">
       <div class="setting-row" onclick="openAddModal()">
@@ -303,7 +347,7 @@ let sheetUrl = loadSheetUrl();
 let nextId = schools.length ? Math.max(...schools.map(s=>s.id))+1 : 1;
 let editingId = null;
 
-function mkRound(no){ return {no,tag:'',apply:'',exam:'',examTime:'',result:'',resultTime:'',procedure:'',fee:'',memo:''}; }
+function mkRound(no){ return {no,tag:'',apply:'',exam:'',examTime:'',result:'',resultTime:'',procedure:'',procedureTime:'',examFee:'',fee:'',memo:''}; }
 function mkSchool(id){ return {id,name:'',cat:'本命',status:'申込前',memo:'',rounds:[mkRound(1)],source:'local'}; }
 
 function today(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
@@ -345,16 +389,18 @@ function parseCSV(text){
       ? (roundNumMatch[2]||'')
       : roundRaw;
     const round = {
-      no:         roundNo,
-      tag:        roundTag,
-      exam:       get(4),
-      examTime:   get(5),
-      apply:      get(6),
-      result:     get(7),
-      resultTime: get(8),
-      procedure:  get(9),
-      fee:        get(10).replace(/[^0-9]/g,''),
-      memo:       get(11),
+      no:            roundNo,
+      tag:           roundTag,
+      exam:          get(4),
+      examTime:      get(5),
+      apply:         get(6),
+      result:        get(7),
+      resultTime:    get(8),
+      procedure:     get(9),
+      procedureTime: get(10),
+      examFee:       get(11).replace(/[^0-9]/g,''),
+      fee:           get(12).replace(/[^0-9]/g,''),
+      memo:          get(13),
     };
 
     if(!schoolMap[name]){
@@ -441,16 +487,18 @@ function fetchSheetJsonp(sheetId){
             : roundRaw;                         // "特待"のみ → "特待"をtagに
 
           const round = {
-            no:         roundNo,
-            tag:        roundTag,
-            exam:       get(4),
-            examTime:   get(5),
-            apply:      get(6),
-            result:     get(7),
-            resultTime: get(8),
-            procedure:  get(9),
-            fee:        get(10).replace(/[^0-9]/g,''),
-            memo:       get(11),
+            no:            roundNo,
+            tag:           roundTag,
+            exam:          get(4),
+            examTime:      get(5),
+            apply:         get(6),
+            result:        get(7),
+            resultTime:    get(8),
+            procedure:     get(9),
+            procedureTime: get(10),  // 手続き期限の時間
+            examFee:       get(11).replace(/[^0-9]/g,''),
+            fee:           get(12).replace(/[^0-9]/g,''),
+            memo:          get(13),
           };
 
           if(!schoolMap[name]){
@@ -574,11 +622,13 @@ function renderSummary(){
   const area=document.getElementById('summary-area');
   const total=schools.length;
   const totalFee=schools.reduce((s,sc)=>s+sc.rounds.reduce((r2,r)=>r2+(parseInt(r.fee)||0),0),0);
+  const totalExamFee=schools.reduce((s,sc)=>s+sc.rounds.reduce((r2,r)=>r2+(parseInt(r.examFee)||0),0),0);
   const examDays=new Set(schools.flatMap(s=>s.rounds.filter(r=>r.exam).map(r=>r.exam))).size;
   area.innerHTML=`
     <div class="summary-card"><div class="s-label">登録校数</div><div class="s-value">${total}<span class="s-unit"> 校</span></div></div>
     <div class="summary-card"><div class="s-label">受験日数</div><div class="s-value">${examDays}<span class="s-unit"> 日</span></div></div>
-    <div class="summary-card"><div class="s-label">費用概算</div><div class="s-value" style="font-size:${totalFee>=1000000?'15px':'20px'}">${totalFee?'¥'+totalFee.toLocaleString():'-'}</div></div>`;
+    <div class="summary-card"><div class="s-label">検定料合計</div><div class="s-value" style="font-size:${totalExamFee>=100000?'14px':'18px'}">${totalExamFee?'¥'+totalExamFee.toLocaleString():'-'}</div></div>
+    <div class="summary-card"><div class="s-label">入学金概算</div><div class="s-value" style="font-size:${totalFee>=1000000?'14px':'18px'}">${totalFee?'¥'+totalFee.toLocaleString():'-'}</div></div>`;
 }
 function renderConnectPrompt(){
   const prompt=document.getElementById('connect-prompt');
@@ -615,7 +665,10 @@ function schoolCard(s){
     const resultStr = r.result ? fmtDate(r.result) : '-';
     const resultTimeStr = r.resultTime || '';
     const procStr = r.procedure ? fmtDate(r.procedure) : '-';
-    const feeStr = r.fee ? yen(r.fee) : '';
+    const procTimeStr = r.procedureTime || '';
+    const examFeeStr = r.examFee ? `検定料 ${yen(r.examFee)}` : '';
+    const feeStr = r.fee ? `入学金 ${yen(r.fee)}` : '';
+    const feeDisp = [examFeeStr, feeStr].filter(Boolean).join(' / ');
 
     // 期限の色
     const en = daysLeft(r.exam);
@@ -628,7 +681,7 @@ function schoolCard(s){
     return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:0;align-items:center;padding:9px 14px;border-top:1px solid var(--border);font-size:12px">
       <div>
         <div style="font-size:11px;font-weight:600;color:var(--accent2)">${roundName}</div>
-        ${feeStr?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${feeStr}</div>`:''}
+        ${feeDisp?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${feeDisp}</div>`:''}
       </div>
       <div style="color:${examCol}">
         <div style="font-weight:500">${examStr}</div>
@@ -638,7 +691,10 @@ function schoolCard(s){
         <div style="font-weight:500">${resultStr}</div>
         ${resultTimeStr?`<div style="font-size:10px;color:var(--text2)">${resultTimeStr}</div>`:''}
       </div>
-      <div style="color:${procCol};font-weight:500">${procStr}</div>
+      <div style="color:${procCol}">
+        <div style="font-weight:500">${procStr}</div>
+        ${procTimeStr?`<div style="font-size:10px;color:var(--text2)">${procTimeStr}</div>`:''}
+      </div>
       <div style="text-align:right">${pn!==null&&pn>=0?daysTag(pn):rn!==null&&rn>=0?daysTag(rn):en!==null&&en>=0?daysTag(en):''}</div>
     </div>`;
   }).join('');
@@ -791,6 +847,11 @@ function examTimeColor(examTime){
 }
 
 function renderGantt(){
+  // 期間の初期値をデフォルト値から設定
+  const gf = document.getElementById('gantt-from');
+  const gt = document.getElementById('gantt-to');
+  if(gf && !gf.value) gf.value = getGanttDefault(GANTT_FROM_KEY, '2027-01-10');
+  if(gt && !gt.value) gt.value = getGanttDefault(GANTT_TO_KEY,   '2027-02-20');
   // まず全roundをtrueで初期化（未登録のものがチャートに漏れないよう）
   schools.forEach(s => s.rounds.forEach(r => {
     const key = ganttCheckKey(s.id, r.no);
@@ -918,8 +979,15 @@ function renderGanttChart(){
     const baseLabel2 = r.tag ? (isTagOnly2 ? r.tag : `第${r.no}回・${r.tag}`) : `第${r.no}回`;
     const timeLabel2 = `${baseLabel2}${examDateStr}${r.examTime?' '+r.examTime:''}`;
     html += `<div style="display:flex;align-items:center;margin-bottom:2px;height:${ROW_H}px">`;
+    const catColors = {'チャレンジ':'rgba(124,111,224,0.25)','本命':'rgba(96,165,240,0.25)','安全校':'rgba(74,222,154,0.25)','都立':'rgba(245,200,66,0.25)'};
+    const catTextColors = {'チャレンジ':'var(--accent2)','本命':'var(--blue)','安全校':'var(--green)','都立':'var(--amber)'};
+    const catBg = catColors[s.cat]||'rgba(150,150,150,0.2)';
+    const catTc = catTextColors[s.cat]||'var(--text3)';
     html += `<div style="width:${LABEL}px;flex-shrink:0;overflow:hidden;white-space:nowrap">
-      <div style="font-size:10px;font-weight:500;color:var(--text2);text-overflow:ellipsis;overflow:hidden">${s.name}</div>
+      <div style="display:flex;align-items:center;gap:3px;overflow:hidden">
+        <span style="font-size:10px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis">${s.name}</span>
+        <span style="font-size:8px;padding:1px 5px;border-radius:10px;background:${catBg};color:${catTc};white-space:nowrap;flex-shrink:0">${s.cat}</span>
+      </div>
       <div style="font-size:9px;color:var(--text3)">${timeLabel2}</div>
     </div>`;
 
@@ -981,12 +1049,49 @@ function renderGanttChart(){
 
   html += '</div>';
   wrap.innerHTML = html;
+
+  // 選択中の費用合計を計算
+  const costDiv = document.getElementById('gantt-cost-summary');
+  const examFeeEl = document.getElementById('gantt-exam-fee');
+  const procFeeEl = document.getElementById('gantt-proc-fee');
+  if(costDiv && targets.length){
+    let totalExamFee = 0, totalProcFee = 0;
+    targets.forEach(({r}) => {
+      totalExamFee += parseInt(r.examFee)||0;
+      totalProcFee += parseInt(r.fee)||0;
+    });
+    costDiv.style.display = 'block';
+    examFeeEl.textContent = totalExamFee ? '¥'+totalExamFee.toLocaleString() : '-';
+    procFeeEl.textContent = totalProcFee ? '¥'+totalProcFee.toLocaleString() : '-';
+    // 色：入学手続費用が高い場合は強調
+    procFeeEl.style.color = totalProcFee > 0 ? 'var(--accent2)' : 'var(--text)';
+    examFeeEl.style.color = totalExamFee > 0 ? 'var(--amber)' : 'var(--text)';
+  } else if(costDiv){
+    costDiv.style.display = 'none';
+  }
 }
 
 // ── 設定 ──
 function renderSettings(){
   const input=document.getElementById('sheet-url-input');
   input.value=sheetUrl||'';
+  // テーマボタンのスタイル更新
+  const currentTheme = localStorage.getItem('jyuken_theme')||'dark';
+  const darkBtn = document.getElementById('theme-dark-btn');
+  const lightBtn = document.getElementById('theme-light-btn');
+  if(darkBtn){
+    darkBtn.style.background = currentTheme==='dark'?'var(--accent)':'var(--surface2)';
+    darkBtn.style.color = currentTheme==='dark'?'#fff':'var(--text2)';
+  }
+  if(lightBtn){
+    lightBtn.style.background = currentTheme==='light'?'var(--accent)':'var(--surface2)';
+    lightBtn.style.color = currentTheme==='light'?'#fff':'var(--text2)';
+  }
+  // 期間初期値を設定欄に反映
+  const sfrom = document.getElementById('setting-gantt-from');
+  const sto   = document.getElementById('setting-gantt-to');
+  if(sfrom) sfrom.value = getGanttDefault(GANTT_FROM_KEY, '2027-01-10');
+  if(sto)   sto.value   = getGanttDefault(GANTT_TO_KEY,   '2027-02-20');
   const statusArea=document.getElementById('conn-status-area');
   if(sheetUrl){
     statusArea.innerHTML=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:13px;color:var(--green)"><span class="connected-dot"></span>接続済み</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px;word-break:break-all">${sheetUrl}</div>`;
@@ -1044,10 +1149,12 @@ function renderModal(s,isNew){
           </select>
         </div>
         <div><label class="form-label-sm">申込期限</label><input class="form-input-sm" id="f-apply-${ri}" type="date" value="${r.apply}"></div>
-        <div><label class="form-label-sm">費用（円）</label><input class="form-input-sm" id="f-fee-${ri}" type="number" value="${r.fee}" placeholder="0" inputmode="numeric"></div>
+        <div><label class="form-label-sm">受験費用（検定料）</label><input class="form-input-sm" id="f-examfee-${ri}" type="number" value="${r.examFee||''}" placeholder="例：25000" inputmode="numeric"></div>
+        <div><label class="form-label-sm">入学手続費用（入学金）</label><input class="form-input-sm" id="f-fee-${ri}" type="number" value="${r.fee||''}" placeholder="例：250000" inputmode="numeric"></div>
         <div><label class="form-label-sm">合格発表日</label><input class="form-input-sm" id="f-result-${ri}" type="date" value="${r.result}"></div>
         <div><label class="form-label-sm">発表時刻</label><input class="form-input-sm" id="f-rtime-${ri}" type="text" value="${r.resultTime||''}" placeholder="例：20:00"></div>
-        <div style="grid-column:1/3"><label class="form-label-sm">手続き期限</label><input class="form-input-sm" id="f-proc-${ri}" type="date" value="${r.procedure}"></div>
+        <div><label class="form-label-sm">手続き期限</label><input class="form-input-sm" id="f-proc-${ri}" type="date" value="${r.procedure}"></div>
+        <div><label class="form-label-sm">手続き時刻</label><input class="form-input-sm" id="f-proctime-${ri}" type="text" value="${r.procedureTime||''}" placeholder="例：12:00"></div>
       </div>
     </div>`).join('')}
     </div>
@@ -1083,10 +1190,12 @@ function addRound(){
       </select>
     </div>
     <div><label class="form-label-sm">申込期限</label><input class="form-input-sm" id="f-apply-${count}" type="date" value=""></div>
-    <div><label class="form-label-sm">費用（円）</label><input class="form-input-sm" id="f-fee-${count}" type="number" value="" placeholder="0" inputmode="numeric"></div>
+    <div><label class="form-label-sm">受験費用（検定料）</label><input class="form-input-sm" id="f-examfee-${count}" type="number" value="" placeholder="例：25000" inputmode="numeric"></div>
+    <div><label class="form-label-sm">入学手続費用（入学金）</label><input class="form-input-sm" id="f-fee-${count}" type="number" value="" placeholder="例：250000" inputmode="numeric"></div>
     <div><label class="form-label-sm">合格発表日</label><input class="form-input-sm" id="f-result-${count}" type="date" value=""></div>
     <div><label class="form-label-sm">発表時刻</label><input class="form-input-sm" id="f-rtime-${count}" type="text" value="" placeholder="例：20:00"></div>
-    <div style="grid-column:1/3"><label class="form-label-sm">手続き期限</label><input class="form-input-sm" id="f-proc-${count}" type="date" value=""></div>
+    <div><label class="form-label-sm">手続き期限</label><input class="form-input-sm" id="f-proc-${count}" type="date" value=""></div>
+    <div><label class="form-label-sm">手続き時刻</label><input class="form-input-sm" id="f-proctime-${count}" type="text" value="" placeholder="例：12:00"></div>
   </div>`;
   cont.appendChild(div);
 }
@@ -1107,10 +1216,12 @@ function saveModal(isNew,id){
       exam:       (document.getElementById(`f-exam-${ri}`)?.value||''),
       examTime:   (document.getElementById(`f-time-${ri}`)?.value||''),
       apply:      (document.getElementById(`f-apply-${ri}`)?.value||''),
+      examFee:    (document.getElementById(`f-examfee-${ri}`)?.value||''),
       fee:        (document.getElementById(`f-fee-${ri}`)?.value||''),
       result:     (document.getElementById(`f-result-${ri}`)?.value||''),
       resultTime: (document.getElementById(`f-rtime-${ri}`)?.value||''),
-      procedure:  (document.getElementById(`f-proc-${ri}`)?.value||''),
+      procedure:     (document.getElementById(`f-proc-${ri}`)?.value||''),
+      procedureTime: (document.getElementById(`f-proctime-${ri}`)?.value||''),
       memo: '',
     });
   });
@@ -1142,8 +1253,8 @@ function closeModalDirect(){document.getElementById('modal-overlay').classList.r
 
 // ── エクスポート ──
 function exportCSV(){
-  const rows=[['学校名','分類','ステータス','回','受験日','時間帯','申込期限','合格発表日','発表時刻','手続期限','手続費用','メモ']];
-  schools.forEach(s=>s.rounds.forEach(r=>rows.push([s.name,s.cat,s.status,r.no,r.exam,r.examTime,r.apply,r.result,r.resultTime||'',r.procedure,r.fee?yen(r.fee):'',r.memo||s.memo])));
+  const rows=[['学校名','分類','ステータス','回','受験日','時間帯','申込期限','合格発表日','発表時刻','手続期限','手続時刻','受験費用','入学手続費用','メモ']];
+  schools.forEach(s=>s.rounds.forEach(r=>rows.push([s.name,s.cat,s.status,r.no,r.exam,r.examTime,r.apply,r.result,r.resultTime||'',r.procedure,r.procedureTime||'',r.examFee||'',r.fee||'',r.memo||s.memo])));
   const csv='\uFEFF'+rows.map(r=>r.map(c=>`"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
   dl(new Blob([csv],{type:'text/csv;charset=utf-8'}),'jyuken_schedule.csv');
 }
@@ -1165,6 +1276,38 @@ function importJSON(e){
 }
 function dl(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
 function clearAll(){schools=[];saveLocal([]);saveSheetUrl('');sheetUrl='';nextId=1;renderHome();renderSettings();}
+
+// ── チャート期間デフォルト管理 ──
+const GANTT_FROM_KEY = 'jyuken_gantt_from';
+const GANTT_TO_KEY   = 'jyuken_gantt_to';
+
+function getGanttDefault(key, fallback){
+  return localStorage.getItem(key) || fallback;
+}
+function saveGanttDefaults(){
+  const f = document.getElementById('setting-gantt-from')?.value;
+  const t = document.getElementById('setting-gantt-to')?.value;
+  if(f) localStorage.setItem(GANTT_FROM_KEY, f);
+  if(t) localStorage.setItem(GANTT_TO_KEY, t);
+  // チャートの入力欄にも反映
+  const gf = document.getElementById('gantt-from');
+  const gt = document.getElementById('gantt-to');
+  if(gf && f) gf.value = f;
+  if(gt && t) gt.value = t;
+}
+
+// ── テーマ管理 ──
+function loadTheme(){
+  const t = localStorage.getItem('jyuken_theme')||'dark';
+  document.documentElement.setAttribute('data-theme', t==='light'?'light':'');
+  return t;
+}
+function setTheme(t){
+  localStorage.setItem('jyuken_theme', t);
+  document.documentElement.setAttribute('data-theme', t==='light'?'light':'');
+  renderSettings();
+}
+loadTheme();
 
 // ── 初期化 ──
 renderSettings();
