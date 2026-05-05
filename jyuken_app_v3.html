@@ -340,29 +340,71 @@ function csvLineParse(line){
   result.push(cur); return result;
 }
 
-// ── GAS URL対応 ──
+// ── スプレッドシート読み込み（JSONP方式）──
 function isGasUrl(url){ return url.includes('script.google.com/macros/s/') && url.includes('/exec'); }
 function isSheetUrl(url){ return url.includes('docs.google.com/spreadsheets/d/'); }
 
+function fetchSheetJsonp(sheetId){
+  return new Promise((resolve, reject) => {
+    const callbackName = 'jyuken_cb_' + Date.now();
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=%E5%8F%97%E9%A8%93%E3%82%B9%E3%82%B1%E3%82%B8%E3%83%A5%E3%83%BC%E3%83%AB&callback=${callbackName}`;
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('タイムアウトしました。スプレッドシートのURLと共有設定を確認してください。'));
+    }, 10000);
+    function cleanup(){ delete window[callbackName]; document.head.removeChild(script); clearTimeout(timer); }
+    window[callbackName] = function(data) {
+      cleanup();
+      try {
+        const rows = data.table.rows;
+        const schools = [];
+        rows.forEach((row, ri) => {
+          if(!row.c || !row.c[0] || !row.c[0].v) return;
+          const get = (i) => { const c = row.c && row.c[i]; return c && c.v !== null && c.v !== undefined ? String(c.v) : ''; };
+          const FIELDS_PER_ROUND = 7;
+          const BASE = 3;
+          const MAX_ROUNDS = 5;
+          const rounds = [];
+          for(let r=0; r<MAX_ROUNDS; r++){
+            const base = BASE + r * FIELDS_PER_ROUND;
+            rounds.push({
+              no: r+1,
+              apply:      get(base+0),
+              exam:       get(base+1),
+              examTime:   get(base+2),
+              result:     get(base+3),
+              resultTime: get(base+4),
+              procedure:  get(base+5),
+              fee:        get(base+6).replace(/[^0-9]/g,''),
+            });
+          }
+          schools.push({
+            id: 1000+ri, name: get(0), cat: get(1)||'本命', status: get(2)||'申込前',
+            memo: get(BASE + FIELDS_PER_ROUND * MAX_ROUNDS)||'', source:'sheet', rounds
+          });
+        });
+        resolve(schools);
+      } catch(e) { reject(new Error('データの解析に失敗しました: ' + e.message)); }
+    };
+    script.src = url;
+    script.onerror = () => { cleanup(); reject(new Error('スプレッドシートの読み込みに失敗しました。\n共有設定を「リンクを知っている全員・閲覧者」にしてください。')); };
+    document.head.appendChild(script);
+  });
+}
+
 async function fetchSheet(url){
   url = url.trim();
-  if(isGasUrl(url)){
-    const res = await fetch(url);
-    if(!res.ok) throw new Error('GASの読み込みに失敗しました（' + res.status + '）');
-    const text = await res.text();
-    if(text.startsWith('ERROR:')) throw new Error('GASエラー: ' + text);
-    return parseCSV(text);
-  } else if(isSheetUrl(url)){
-    const id = sheetIdFromUrl(url);
-    if(!id) throw new Error('スプレッドシートのURLが正しくありません');
-    const csvUrl = csvUrlFromId(id);
-    const res = await fetch(csvUrl);
-    if(!res.ok) throw new Error('スプレッドシートの読み込みに失敗しました。\n共有設定を「リンクを知っている全員が閲覧可」にしてください。');
-    const text = await res.text();
-    return parseCSV(text);
-  } else {
-    throw new Error('URLの形式が正しくありません。\nGASのデプロイURL（script.google.com/macros/s/.../exec）を入力してください。');
+  let sheetId = null;
+  if(isSheetUrl(url)){
+    const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    sheetId = m ? m[1] : null;
+  } else if(isGasUrl(url)){
+    // GASURLからシートIDは取れないのでエラー案内
+    throw new Error('GAS URLは現在非対応です。\nスプレッドシートのURL（docs.google.com/spreadsheets/d/...）を入力してください。');
   }
+  if(!sheetId) throw new Error('スプレッドシートのURLを入力してください。\n例: https://docs.google.com/spreadsheets/d/...');
+  return await fetchSheetJsonp(sheetId);
 }
 
 async function connectSheet(){
