@@ -373,25 +373,31 @@ function isSheetUrl(url){ return url.includes('docs.google.com/spreadsheets/d/')
 
 function fetchSheetJsonp(sheetId){
   return new Promise((resolve, reject) => {
-    const callbackName = 'jyuken_cb_' + Date.now();
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=%E5%8F%97%E9%A8%93%E3%82%B9%E3%82%B1%E3%82%B8%E3%83%A5%E3%83%BC%E3%83%AB&callback=${callbackName}`;
-    const script = document.createElement('script');
+    const sid = encodeURIComponent('受験スケジュール');
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${sid}`;
     const timer = setTimeout(() => {
-      cleanup();
       reject(new Error('タイムアウトしました。スプレッドシートのURLと共有設定を確認してください。'));
     }, 10000);
-    function cleanup(){ delete window[callbackName]; document.head.removeChild(script); clearTimeout(timer); }
-    window[callbackName] = function(data) {
-      cleanup();
-      try {
-        const rows = data.table.rows;
-        const schools = [];
+
+    fetch(url)
+      .then(r => r.text())
+      .then(text => {
+        clearTimeout(timer);
+        // レスポンスは /*O_o*/\ngoogle.visualization.Query.setResponse({...}); の形式
+        const match = text.match(/google\.visualization\.Query\.setResponse\((.+)\);?\s*$/s);
+        if(!match) throw new Error('レスポンスの解析に失敗しました');
+        const data = JSON.parse(match[1]);
+        const rows = (data.table && data.table.rows) || [];
+        const FIELDS_PER_ROUND = 7;
+        const BASE = 3;
+        const MAX_ROUNDS = 5;
+        const result = [];
         rows.forEach((row, ri) => {
           if(!row.c || !row.c[0] || !row.c[0].v) return;
-          const get = (i) => { const c = row.c && row.c[i]; return c && c.v !== null && c.v !== undefined ? String(c.v) : ''; };
-          const FIELDS_PER_ROUND = 7;
-          const BASE = 3;
-          const MAX_ROUNDS = 5;
+          const get = (i) => {
+            const c = row.c && row.c[i];
+            return c && c.v !== null && c.v !== undefined ? String(c.v) : '';
+          };
           const rounds = [];
           for(let r=0; r<MAX_ROUNDS; r++){
             const base = BASE + r * FIELDS_PER_ROUND;
@@ -406,19 +412,20 @@ function fetchSheetJsonp(sheetId){
               fee:        get(base+6).replace(/[^0-9]/g,''),
             });
           }
-          schools.push({
+          result.push({
             id: 1000+ri, name: get(0), cat: get(1)||'本命', status: get(2)||'申込前',
             memo: get(BASE + FIELDS_PER_ROUND * MAX_ROUNDS)||'', source:'sheet', rounds
           });
         });
-        resolve(schools);
-      } catch(e) { reject(new Error('データの解析に失敗しました: ' + e.message)); }
-    };
-    script.src = url;
-    script.onerror = () => { cleanup(); reject(new Error('スプレッドシートの読み込みに失敗しました。\n共有設定を「リンクを知っている全員・閲覧者」にしてください。')); };
-    document.head.appendChild(script);
+        resolve(result);
+      })
+      .catch(e => {
+        clearTimeout(timer);
+        reject(new Error('スプレッドシートの読み込みに失敗しました。\n共有設定を「リンクを知っている全員・閲覧者」にしてください。\n(' + e.message + ')'));
+      });
   });
 }
+
 
 async function fetchSheet(url){
   url = url.trim();
