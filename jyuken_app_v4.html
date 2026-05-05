@@ -334,7 +334,7 @@ function parseCSV(text){
     const name = get(0);
     if(!name || name==='学校名') continue;
 
-    const roundRaw = get(3)||'1';
+    const roundRaw = String(get(3)||'1').trim();
     const roundNo = parseInt(roundRaw)||1;
     const roundTag = roundRaw.includes('_') ? roundRaw.split('_').slice(1).join('_') : '';
     const round = {
@@ -398,52 +398,70 @@ function fetchSheetJsonp(sheetId){
       .then(r => r.text())
       .then(text => {
         clearTimeout(timer);
-        // レスポンスは /*O_o*/\ngoogle.visualization.Query.setResponse({...}); の形式
         const match = text.match(/google\.visualization\.Query\.setResponse\((.+)\);?\s*$/s);
         if(!match) throw new Error('レスポンスの解析に失敗しました');
         const data = JSON.parse(match[1]);
         const rows = (data.table && data.table.rows) || [];
-        const FIELDS_PER_ROUND = 7;
-        const BASE = 3;
-        const MAX_ROUNDS = 5;
-        const result = [];
-        rows.forEach((row, ri) => {
-          if(!row.c || !row.c[0] || !row.c[0].v) return;
+
+        // 縦持ちパース: 学校名,分類,ステータス,回,受験日,時間帯,申込期限,合格発表日,発表時刻,手続期限,手続費用,メモ
+        const schoolMap = {};
+        const schoolOrder = [];
+
+        rows.forEach((row) => {
+          if(!row.c) return;
           const get = (i) => {
             const c = row.c && row.c[i];
             if(!c || c.v === null || c.v === undefined) return '';
-            // Google Sheets APIは日付をDateオブジェクトで返すことがある
             if(typeof c.v === 'object' && c.v instanceof Date) {
               const d = c.v;
               return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
             }
-            // Date(year,month,day)形式の文字列の場合も変換
             if(typeof c.v === 'string' && c.v.startsWith('Date(')) {
               const m = c.v.match(/Date\((\d+),(\d+),(\d+)\)/);
               if(m) return `${m[1]}-${String(parseInt(m[2])+1).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
             }
             return String(c.v);
           };
-          const rounds = [];
-          for(let r=0; r<MAX_ROUNDS; r++){
-            const base = BASE + r * FIELDS_PER_ROUND;
-            rounds.push({
-              no: r+1,
-              apply:      get(base+0),
-              exam:       get(base+1),
-              examTime:   get(base+2),
-              result:     get(base+3),
-              resultTime: get(base+4),
-              procedure:  get(base+5),
-              fee:        get(base+6).replace(/[^0-9]/g,''),
-            });
+
+          const name = get(0);
+          if(!name || name === '学校名') return;
+
+          const roundRaw = String(get(3)||'1').trim();
+          const roundNo = parseInt(roundRaw)||1;
+          const roundTag = roundRaw.includes('_') ? roundRaw.split('_').slice(1).join('_') : '';
+
+          const round = {
+            no:         roundNo,
+            tag:        roundTag,
+            exam:       get(4),
+            examTime:   get(5),
+            apply:      get(6),
+            result:     get(7),
+            resultTime: get(8),
+            procedure:  get(9),
+            fee:        get(10).replace(/[^0-9]/g,''),
+            memo:       get(11),
+          };
+
+          if(!schoolMap[name]){
+            const id = 1000 + schoolOrder.length;
+            schoolMap[name] = {
+              id, name,
+              cat:    get(1)||'本命',
+              status: get(2)||'申込前',
+              memo:   get(11)||'',
+              source: 'sheet',
+              rounds: []
+            };
+            schoolOrder.push(name);
           }
-          result.push({
-            id: 1000+ri, name: get(0), cat: get(1)||'本命', status: get(2)||'申込前',
-            memo: get(BASE + FIELDS_PER_ROUND * MAX_ROUNDS)||'', source:'sheet', rounds
-          });
+          schoolMap[name].cat    = get(1)||schoolMap[name].cat;
+          schoolMap[name].status = get(2)||schoolMap[name].status;
+          if(get(11)) schoolMap[name].memo = get(11);
+          schoolMap[name].rounds.push(round);
         });
-        resolve(result);
+
+        resolve(schoolOrder.map(n => schoolMap[n]));
       })
       .catch(e => {
         clearTimeout(timer);
@@ -451,7 +469,6 @@ function fetchSheetJsonp(sheetId){
       });
   });
 }
-
 
 async function fetchSheet(url){
   url = url.trim();
