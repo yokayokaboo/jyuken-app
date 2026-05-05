@@ -339,8 +339,11 @@ function parseCSV(text){
     if(!name || name==='学校名') continue;
 
     const roundRaw = String(get(3)||'1').trim();
-    const roundNo = parseInt(roundRaw)||1;
-    const roundTag = roundRaw.includes('_') ? roundRaw.split('_').slice(1).join('_') : '';
+    const roundNumMatch = roundRaw.match(/^(\d+)(?:_(.+))?$/);
+    const roundNo = roundNumMatch ? parseInt(roundNumMatch[1]) : (schoolMap[name]?.rounds.length||0)+1;
+    const roundTag = roundNumMatch
+      ? (roundNumMatch[2]||'')
+      : roundRaw;
     const round = {
       no:         roundNo,
       tag:        roundTag,
@@ -431,8 +434,11 @@ function fetchSheetJsonp(sheetId){
           if(!name || name === '学校名') return;
 
           const roundRaw = String(get(3)||'1').trim();
-          const roundNo = parseInt(roundRaw)||1;
-          const roundTag = roundRaw.includes('_') ? roundRaw.split('_').slice(1).join('_') : '';
+          const roundNumMatch = roundRaw.match(/^(\d+)(?:_(.+))?$/);
+          const roundNo = roundNumMatch ? parseInt(roundNumMatch[1]) : (schoolMap[name]?.rounds.length||0)+1;
+          const roundTag = roundNumMatch
+            ? (roundNumMatch[2]||'')           // 1_特待 → "特待"
+            : roundRaw;                         // "特待"のみ → "特待"をtagに
 
           const round = {
             no:         roundNo,
@@ -593,40 +599,79 @@ function renderSchoolList(){
   list.innerHTML=sorted.map(s=>schoolCard(s)).join('');
 }
 function schoolCard(s){
-  const activeRounds=s.rounds.filter(r=>r.apply||r.exam||r.result||r.procedure||r.fee);
-  const roundsHtml=activeRounds.map(r=>{
-    const rows=[];
-    if(r.apply){const n=daysLeft(r.apply);rows.push(`<div class="tl-row"><div class="tl-label">申込期限</div><div class="tl-date ${dateClass(n)}">${fmtDate(r.apply)}</div>${daysTag(n)}</div>`);}
-    if(r.exam){const n=daysLeft(r.exam);rows.push(`<div class="tl-row"><div class="tl-label">受験日</div><div class="tl-date ${dateClass(n)}">${fmtDate(r.exam)}</div><div class="tl-time">${r.examTime||''}</div>${daysTag(n)}</div>`);}
-    if(r.result){const n=daysLeft(r.result);rows.push(`<div class="tl-row"><div class="tl-label">合格発表</div><div class="tl-date ${dateClass(n)}">${fmtDate(r.result)}</div><div class="tl-time">${r.resultTime||''}</div>${daysTag(n)}</div>`);}
-    if(r.procedure){const n=daysLeft(r.procedure);rows.push(`<div class="tl-row"><div class="tl-label">手続期限</div><div class="tl-date ${dateClass(n)}">${fmtDate(r.procedure)}</div>${daysTag(n)}</div>`);}
-    if(!rows.length) return '';
-    const tagDisp = r.tag ? `・${r.tag}` : '';
-    const feeHtml=r.fee?`<span class="fee-tag">${yen(r.fee)}</span>`:'';
-    return `<div class="round-label">第${r.no}回${tagDisp} ${feeHtml}</div><div class="timeline">${rows.join('')}</div>`;
+  const activeRounds = s.rounds.filter(r => r.apply||r.exam||r.result||r.procedure||r.fee);
+  if(!activeRounds.length){
+    // データなし行
+    return `<div class="card" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:14px;font-weight:600">${s.name}</div>
+      <div style="display:flex;gap:6px">${catBadge(s.cat)}${statusPill(s.status)}</div>
+    </div>`;
+  }
+  const rowsHtml = activeRounds.map(r => {
+    const isTagOnly3 = r.tag && !/^\d/.test(String(r.no));
+    const roundName = r.tag ? (isTagOnly3 ? r.tag : `第${r.no}回・${r.tag}`) : `第${r.no}回`;
+    const examStr = r.exam ? fmtDate(r.exam) : '-';
+    const timeStr = r.examTime || '';
+    const resultStr = r.result ? fmtDate(r.result) : '-';
+    const resultTimeStr = r.resultTime || '';
+    const procStr = r.procedure ? fmtDate(r.procedure) : '-';
+    const feeStr = r.fee ? yen(r.fee) : '';
+
+    // 期限の色
+    const en = daysLeft(r.exam);
+    const rn = daysLeft(r.result);
+    const pn = daysLeft(r.procedure);
+    const examCol = en!==null&&en<=3?'var(--red)':en!==null&&en<=7?'var(--amber)':'var(--text)';
+    const resultCol = rn!==null&&rn<=3?'var(--red)':rn!==null&&rn<=7?'var(--amber)':'var(--text)';
+    const procCol = pn!==null&&pn<=3?'var(--red)':pn!==null&&pn<=7?'var(--amber)':'var(--text)';
+
+    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:0;align-items:center;padding:9px 14px;border-top:1px solid var(--border);font-size:12px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--accent2)">${roundName}</div>
+        ${feeStr?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${feeStr}</div>`:''}
+      </div>
+      <div style="color:${examCol}">
+        <div style="font-weight:500">${examStr}</div>
+        ${timeStr?`<div style="font-size:10px;color:var(--text2)">${timeStr}</div>`:''}
+      </div>
+      <div style="color:${resultCol}">
+        <div style="font-weight:500">${resultStr}</div>
+        ${resultTimeStr?`<div style="font-size:10px;color:var(--text2)">${resultTimeStr}</div>`:''}
+      </div>
+      <div style="color:${procCol};font-weight:500">${procStr}</div>
+      <div style="text-align:right">${pn!==null&&pn>=0?daysTag(pn):rn!==null&&rn>=0?daysTag(rn):en!==null&&en>=0?daysTag(en):''}</div>
+    </div>`;
   }).join('');
-  const memoHtml=s.memo?`<div style="font-size:12px;color:var(--text3);padding-top:8px;border-top:1px solid var(--border);margin-top:8px">${s.memo}</div>`:'';
-  const editBtn=s.source==='local'?`<button onclick="openEditModal(${s.id})" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:6px 12px;font-size:12px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;white-space:nowrap">編集</button>`:`<span style="font-size:10px;color:var(--text3);padding:6px 8px">シート連携</span>`;
-  return `<div class="card">
-    <div class="card-header">
-      <div><div class="card-name">${s.name}</div><div style="display:flex;gap:6px;margin-top:6px;align-items:center">${catBadge(s.cat)} ${statusPill(s.status)}</div></div>
-      ${editBtn}
+
+  const memoHtml = s.memo ? `<div style="font-size:11px;color:var(--text3);padding:6px 14px 10px;border-top:1px solid var(--border)">${s.memo}</div>` : '';
+
+  return `<div class="card" style="margin-bottom:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px 0">
+      <div style="font-size:15px;font-weight:700">${s.name}</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${catBadge(s.cat)}${statusPill(s.status)}
+        <button onclick="openEditModal(${s.id})" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:4px 10px;font-size:11px;font-family:'Noto Sans JP',sans-serif;cursor:pointer">編集</button>
+      </div>
     </div>
-    ${activeRounds.length?`<div class="card-body"><div class="timeline">${roundsHtml}</div>${memoHtml}</div>`:''}
+    <!-- 列ヘッダー -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:0;padding:6px 14px 4px;font-size:9px;font-weight:600;color:var(--text3);letter-spacing:.06em;text-transform:uppercase">
+      <div>回</div><div>受験日</div><div>合格発表</div><div>手続期限</div><div style="text-align:right">残日数</div>
+    </div>
+    ${rowsHtml}${memoHtml}
   </div>`;
 }
 
-// ── ガント ──
-// 選択状態管理: { 'schoolId_roundNo': true/false }
+
+// ── ガント状態管理変数 ──
 let ganttChecks = {};
 let ganttSort = 'school'; // 'school' | 'date'
 
 function setGanttSort(mode){
   ganttSort = mode;
-  document.getElementById('sort-btn-school').style.background = mode==='school'?'var(--accent)':'var(--surface2)';
-  document.getElementById('sort-btn-school').style.color = mode==='school'?'#fff':'var(--text2)';
-  document.getElementById('sort-btn-date').style.background = mode==='date'?'var(--accent)':'var(--surface2)';
-  document.getElementById('sort-btn-date').style.color = mode==='date'?'#fff':'var(--text2)';
+  const btnSchool = document.getElementById('sort-btn-school');
+  const btnDate = document.getElementById('sort-btn-date');
+  if(btnSchool){ btnSchool.style.background = mode==='school'?'var(--accent)':'var(--surface2)'; btnSchool.style.color = mode==='school'?'#fff':'var(--text2)'; }
+  if(btnDate){ btnDate.style.background = mode==='date'?'var(--accent)':'var(--surface2)'; btnDate.style.color = mode==='date'?'#fff':'var(--text2)'; }
   renderGanttControls();
   renderGanttChart();
 }
@@ -688,17 +733,25 @@ function renderGanttControls(){
       sortedRounds.forEach(r => {
         const key = ganttCheckKey(s.id, r.no);
         if(ganttChecks[key] === undefined) ganttChecks[key] = true;
-        const tagStr = r.tag ? `・${r.tag}` : '';
-        let label = `第${r.no}回${tagStr}`;
+        // tagのみ入力の場合は「第N回」を表示しない
+        const hasNumericNo = r.tag !== String(r.no); // tagが数字と異なる場合
+        const roundPrefix = r.tag && !String(r.no+'_'+r.tag).startsWith(String(r.no)+'_') ? r.tag
+          : r.tag ? `第${r.no}回・${r.tag}` : `第${r.no}回`;
+        // シンプルに: tagがあって、かつ入力が数字でない場合はtagのみ
+        const isTagOnly = r.tag && !/^\d/.test(String(r.no)); // noが数字始まりでない = tag入力のみ
+        const baseLabel = r.tag
+          ? (isTagOnly ? r.tag : `第${r.no}回・${r.tag}`)
+          : `第${r.no}回`;
+        let label = baseLabel;
         if(r.exam){
           const d = new Date(r.exam+'T00:00');
           if(!isNaN(d.getTime())){
             const mmdd = `${d.getMonth()+1}/${d.getDate()}`;
             const time = r.examTime || '';
-            label = `第${r.no}回${tagStr}（${mmdd}${time?' '+time:''}）`;
+            label = `${baseLabel}（${mmdd}${time?' '+time:''}）`;
           }
         } else if(r.examTime){
-          label = `第${r.no}回${tagStr}（${r.examTime}）`;
+          label = `${baseLabel}（${r.examTime}）`;
         }
         roundsRow.innerHTML += `
         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer;white-space:nowrap">
@@ -861,8 +914,9 @@ function renderGanttChart(){
   targets.forEach(({s, r}) => {
     // 受験日があれば「2/1」形式で表示
     const examDateStr = r.exam ? (()=>{ const d=new Date(r.exam+'T00:00'); return isNaN(d)?'':` ${d.getMonth()+1}/${d.getDate()}`; })() : '';
-    const tagStr2 = r.tag ? `・${r.tag}` : '';
-    const timeLabel2 = `第${r.no}回${tagStr2}${examDateStr}${r.examTime?' '+r.examTime:''}`;
+    const isTagOnly2 = r.tag && !/^\d/.test(String(r.no));
+    const baseLabel2 = r.tag ? (isTagOnly2 ? r.tag : `第${r.no}回・${r.tag}`) : `第${r.no}回`;
+    const timeLabel2 = `${baseLabel2}${examDateStr}${r.examTime?' '+r.examTime:''}`;
     html += `<div style="display:flex;align-items:center;margin-bottom:2px;height:${ROW_H}px">`;
     html += `<div style="width:${LABEL}px;flex-shrink:0;overflow:hidden;white-space:nowrap">
       <div style="font-size:10px;font-weight:500;color:var(--text2);text-overflow:ellipsis;overflow:hidden">${s.name}</div>
@@ -949,7 +1003,9 @@ function openAddModal(){
 }
 function openEditModal(id){
   editingId=id;
-  const s=loadLocal().find(sc=>sc.id===id);
+  // ローカルになければschoolsから取得（シート連携データも編集可）
+  let s = loadLocal().find(sc=>sc.id===id);
+  if(!s) s = schools.find(sc=>sc.id===id);
   if(!s) return;
   renderModal(JSON.parse(JSON.stringify(s)),false);
 }
@@ -971,6 +1027,10 @@ function renderModal(s,isNew){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div class="round-form-title" style="margin-bottom:0">第${r.no}回</div>
         ${ri>0?`<button type="button" onclick="removeRound(${ri})" style="font-size:10px;color:var(--red);background:none;border:none;cursor:pointer">削除</button>`:''}
+      </div>
+      <div style="margin-bottom:8px">
+        <label class="form-label-sm">回の名前（任意）</label>
+        <input class="form-input-sm" id="f-tag-${ri}" type="text" value="${r.tag||''}" placeholder="例：特待、4科、国語単科">
       </div>
       <div class="form-grid-2">
         <div><label class="form-label-sm">受験日</label><input class="form-input-sm" id="f-exam-${ri}" type="date" value="${r.exam}"></div>
@@ -1014,6 +1074,7 @@ function addRound(){
     <div class="round-form-title" style="margin-bottom:0">第${no}回</div>
     <button type="button" onclick="removeRound(${count})" style="font-size:10px;color:var(--red);background:none;border:none;cursor:pointer">削除</button>
   </div>
+  <div style="margin-bottom:8px"><label class="form-label-sm">回の名前（任意）</label><input class="form-input-sm" id="f-tag-${count}" type="text" value="" placeholder="例：特待、4科、国語単科"></div>
   <div class="form-grid-2">
     <div><label class="form-label-sm">受験日</label><input class="form-input-sm" id="f-exam-${count}" type="date" value=""></div>
     <div><label class="form-label-sm">時間帯</label>
@@ -1042,6 +1103,7 @@ function saveModal(isNew,id){
   roundBlocks.forEach((block, ri) => {
     rounds.push({
       no: ri+1,
+      tag:        (document.getElementById(`f-tag-${ri}`)?.value||''),
       exam:       (document.getElementById(`f-exam-${ri}`)?.value||''),
       examTime:   (document.getElementById(`f-time-${ri}`)?.value||''),
       apply:      (document.getElementById(`f-apply-${ri}`)?.value||''),
@@ -1054,10 +1116,18 @@ function saveModal(isNew,id){
   });
   const s={id,name,cat:document.getElementById('f-cat').value,status:document.getElementById('f-status').value,memo:document.getElementById('f-memo').value,source:'local',rounds};
   let local=loadLocal();
+  s.source='local'; // 保存時はローカルに
   if(isNew){local.push(s);nextId++;}
-  else{const i=local.findIndex(sc=>sc.id===id);if(i>=0)local[i]=s;}
+  else{
+    const i=local.findIndex(sc=>sc.id===id);
+    if(i>=0) local[i]=s;
+    else local.push(s); // シート連携データの初回ローカル保存
+  }
   saveLocal(local);
-  schools=[...local,...schools.filter(sc=>sc.source==='sheet')];
+  // schoolsを更新（シート連携の同IDがあれば上書き）
+  schools = schools.map(sc => sc.id===id ? s : sc);
+  const ids = schools.map(sc=>sc.id);
+  local.forEach(ls => { if(!ids.includes(ls.id)) schools.push(ls); });
   closeModalDirect(); renderHome();
 }
 function deleteSchool(id){
