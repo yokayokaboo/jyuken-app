@@ -596,17 +596,33 @@ function renderGanttControls(){
     // 回チェックボックス
     const roundsRow = document.createElement('div');
     roundsRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding-left:22px';
-    activeRounds.forEach(r => {
-      const key = ganttCheckKey(s.id, r.no);
-      if(ganttChecks[key] === undefined) ganttChecks[key] = true;
-      const label = r.examTime ? `第${r.no}回(${r.examTime})` : `第${r.no}回`;
-      roundsRow.innerHTML += `
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">
+    // 受験日でソート（日付なし→後ろ）
+      const sortedRounds = [...activeRounds].sort((a,b)=>{
+        const da = a.exam ? new Date(a.exam+'T00:00').getTime() : Infinity;
+        const db = b.exam ? new Date(b.exam+'T00:00').getTime() : Infinity;
+        if(da !== db) return da - db;
+        const order = t => t&&t.includes('午前')&&t.includes('午後')?1:t&&t.includes('午前')?0:t&&t.includes('午後')?2:t&&t.includes('夜')?3:4;
+        return order(a.examTime) - order(b.examTime);
+      });
+      sortedRounds.forEach(r => {
+        const key = ganttCheckKey(s.id, r.no);
+        if(ganttChecks[key] === undefined) ganttChecks[key] = true;
+        let label = `第${r.no}回`;
+        if(r.exam){
+          const d = new Date(r.exam+'T00:00');
+          const mmdd = `${d.getMonth()+1}/${d.getDate()}`;
+          const time = r.examTime || '';
+          label = `第${r.no}回（${mmdd}${time?' '+time:''}）`;
+        } else if(r.examTime){
+          label = `第${r.no}回（${r.examTime}）`;
+        }
+        roundsRow.innerHTML += `
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer;white-space:nowrap">
           <input type="checkbox" ${ganttChecks[key]?'checked':''} style="accent-color:var(--accent);cursor:pointer"
             onchange="ganttToggleRound(${s.id},${r.no},this.checked)">
           ${label}
         </label>`;
-    });
+      });
     schoolDiv.appendChild(roundsRow);
     cont.appendChild(schoolDiv);
   });
@@ -655,11 +671,16 @@ function renderGanttChart(){
     return;
   }
   const DAYS = Math.ceil((END-START)/86400000)+1;
-  // 1日3列（午前・午後・夜）
-  const SLOT_W = 10; // 1スロットの幅px
-  const SLOTS  = 3;  // 午前・午後・夜
-  const DAY_W  = SLOT_W * SLOTS;
+  // チャート幅を日数に応じて自動調整：短い期間ほど1日が広い
+  // 利用可能幅 = wrap親要素の幅 - ラベル幅
   const LABEL  = 90;
+  const SLOTS  = 3; // 午前・午後・夜
+  const availW = Math.max(wrap.parentElement.clientWidth - LABEL - 16, 200);
+  // 1日あたりの幅：最小8px×3スロット、最大40px×3スロット
+  const DAY_W_RAW = Math.max(8*SLOTS, Math.min(40*SLOTS, Math.floor(availW / DAYS)));
+  // スロット幅はDAY_Wを3等分（切り捨て）
+  const SLOT_W = Math.max(6, Math.floor(DAY_W_RAW / SLOTS));
+  const DAY_W  = SLOT_W * SLOTS;
   const ROW_H  = 22;
   const todayD = today();
 
