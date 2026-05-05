@@ -299,8 +299,8 @@ let sheetUrl = loadSheetUrl();
 let nextId = schools.length ? Math.max(...schools.map(s=>s.id))+1 : 1;
 let editingId = null;
 
-function mkRound(no){ return {no,apply:'',exam:'',examTime:'',result:'',resultTime:'',procedure:'',fee:''}; }
-function mkSchool(id){ return {id,name:'',cat:'本命',status:'申込前',memo:'',rounds:[mkRound(1),mkRound(2),mkRound(3)],source:'local'}; }
+function mkRound(no){ return {no,apply:'',exam:'',examTime:'',result:'',resultTime:'',procedure:'',fee:'',memo:''}; }
+function mkSchool(id){ return {id,name:'',cat:'本命',status:'申込前',memo:'',rounds:[mkRound(1)],source:'local'}; }
 
 function today(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
 function parseDate(s){ if(!s) return null; const d=new Date(s+'T00:00'); return isNaN(d)?null:d; }
@@ -323,39 +323,51 @@ function sheetIdFromUrl(url){
 function csvUrlFromId(id){ return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=%E5%8F%97%E9%A8%93%E3%82%B9%E3%82%B1%E3%82%B8%E3%83%A5%E3%83%BC%E3%83%AB`; }
 
 function parseCSV(text){
+  // 縦持ち形式: 学校名,分類,ステータス,回,受験日,時間帯,申込期限,合格発表日,発表時刻,手続期限,手続費用,メモ
   const lines = text.trim().split('\n');
-  const result = [];
-  // フィールド数: 基本3 + 回ごと7 + メモ1 = 3+7*5+1=39
-  const FIELDS_PER_ROUND = 7;
-  const BASE = 3;
-  const MAX_ROUNDS = 5;
-  for(let i=1; i<lines.length; i++){
+  const schoolMap = {}; // 学校名 -> school object
+  const schoolOrder = [];
+
+  for(let i=0; i<lines.length; i++){
     const cols = csvLineParse(lines[i]);
-    if(!cols[0] || cols[0].trim()==='' || cols[0].includes('学校名')) continue;
     const get = (idx) => (cols[idx]||'').replace(/^"|"$/g,'').trim();
-    const memoIdx = BASE + FIELDS_PER_ROUND * MAX_ROUNDS;
-    const rounds = [];
-    for(let r=0; r<MAX_ROUNDS; r++){
-      const base = BASE + r * FIELDS_PER_ROUND;
-      rounds.push({
-        no: r+1,
-        apply:    get(base+0),
-        exam:     get(base+1),
-        examTime: get(base+2),
-        result:   get(base+3),
-        resultTime: get(base+4),
-        procedure: get(base+5),
-        fee:      get(base+6).replace(/[^0-9]/g,''),
-      });
-    }
-    const school = {
-      id: 1000+i, name: get(0), cat: get(1)||'本命', status: get(2)||'申込前',
-      memo: get(memoIdx)||'', source:'sheet', rounds
+    const name = get(0);
+    if(!name || name==='学校名') continue;
+
+    const roundNo = parseInt(get(3))||1;
+    const round = {
+      no:         roundNo,
+      exam:       get(4),
+      examTime:   get(5),
+      apply:      get(6),
+      result:     get(7),
+      resultTime: get(8),
+      procedure:  get(9),
+      fee:        get(10).replace(/[^0-9]/g,''),
+      memo:       get(11),
     };
-    if(school.name) result.push(school);
+
+    if(!schoolMap[name]){
+      const id = 1000 + schoolOrder.length;
+      schoolMap[name] = {
+        id, name,
+        cat:    get(1)||'本命',
+        status: get(2)||'申込前',
+        memo:   get(11)||'',
+        source: 'sheet',
+        rounds: []
+      };
+      schoolOrder.push(name);
+    }
+    // 分類・ステータス・メモは最後の行で上書き（同じ学校の複数行で一致させる想定）
+    schoolMap[name].cat    = get(1)||schoolMap[name].cat;
+    schoolMap[name].status = get(2)||schoolMap[name].status;
+    if(get(11)) schoolMap[name].memo = get(11);
+    schoolMap[name].rounds.push(round);
   }
-  return result;
+  return schoolOrder.map(n => schoolMap[n]);
 }
+
 function csvLineParse(line){
   const result=[]; let cur=''; let inQ=false;
   for(let i=0;i<line.length;i++){
@@ -848,10 +860,14 @@ function renderModal(s,isNew){
     <div class="form-group"><label class="form-label">ステータス</label>
       <select class="form-input" id="f-status">${STATUSES.map(st=>`<option value="${st}"${s.status===st?' selected':''}>${st}</option>`).join('')}</select>
     </div>
+    <div id="rounds-container">
     ${s.rounds.map((r,ri)=>`
-    <div class="round-form"><div class="round-form-title">第${r.no}回</div>
+    <div class="round-form" id="round-block-${ri}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="round-form-title" style="margin-bottom:0">第${r.no}回</div>
+        ${ri>0?`<button type="button" onclick="removeRound(${ri})" style="font-size:10px;color:var(--red);background:none;border:none;cursor:pointer">削除</button>`:''}
+      </div>
       <div class="form-grid-2">
-        <div><label class="form-label-sm">申込期限</label><input class="form-input-sm" id="f-apply-${ri}" type="date" value="${r.apply}"></div>
         <div><label class="form-label-sm">受験日</label><input class="form-input-sm" id="f-exam-${ri}" type="date" value="${r.exam}"></div>
         <div><label class="form-label-sm">時間帯</label>
           <select class="form-input-sm" id="f-time-${ri}">
@@ -859,14 +875,18 @@ function renderModal(s,isNew){
             <option value="午前"${r.examTime==='午前'?' selected':''}>午前</option>
             <option value="午後"${r.examTime==='午後'?' selected':''}>午後</option>
             <option value="午前・午後"${r.examTime==='午前・午後'?' selected':''}>午前・午後</option>
+            <option value="夜"${r.examTime==='夜'?' selected':''}>夜</option>
           </select>
         </div>
+        <div><label class="form-label-sm">申込期限</label><input class="form-input-sm" id="f-apply-${ri}" type="date" value="${r.apply}"></div>
         <div><label class="form-label-sm">費用（円）</label><input class="form-input-sm" id="f-fee-${ri}" type="number" value="${r.fee}" placeholder="0" inputmode="numeric"></div>
         <div><label class="form-label-sm">合格発表日</label><input class="form-input-sm" id="f-result-${ri}" type="date" value="${r.result}"></div>
         <div><label class="form-label-sm">発表時刻</label><input class="form-input-sm" id="f-rtime-${ri}" type="text" value="${r.resultTime||''}" placeholder="例：20:00"></div>
         <div style="grid-column:1/3"><label class="form-label-sm">手続き期限</label><input class="form-input-sm" id="f-proc-${ri}" type="date" value="${r.procedure}"></div>
       </div>
     </div>`).join('')}
+    </div>
+    <button type="button" onclick="addRound()" style="width:100%;padding:8px;margin-bottom:12px;border-radius:8px;border:1px dashed var(--border2);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;font-family:'Noto Sans JP',sans-serif">＋ 受験回を追加</button>
     <div class="form-group"><label class="form-label">メモ</label><input class="form-input" id="f-memo" type="text" value="${s.memo||''}" placeholder="備考など"></div>
     <button class="btn btn-primary" onclick="saveModal(${isNew},${s.id})">保存</button>
     ${!isNew?`<button class="btn btn-danger" onclick="deleteSchool(${s.id})">削除</button>`:''}
@@ -878,11 +898,56 @@ function segSelect(btn,hiddenId,val){
   btn.classList.add('active');
   document.getElementById(hiddenId).value=val;
 }
+function addRound(){
+  const cont = document.getElementById('rounds-container');
+  const count = cont.querySelectorAll('.round-form').length;
+  const no = count + 1;
+  const div = document.createElement('div');
+  div.className = 'round-form';
+  div.id = `round-block-${count}`;
+  div.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div class="round-form-title" style="margin-bottom:0">第${no}回</div>
+    <button type="button" onclick="removeRound(${count})" style="font-size:10px;color:var(--red);background:none;border:none;cursor:pointer">削除</button>
+  </div>
+  <div class="form-grid-2">
+    <div><label class="form-label-sm">受験日</label><input class="form-input-sm" id="f-exam-${count}" type="date" value=""></div>
+    <div><label class="form-label-sm">時間帯</label>
+      <select class="form-input-sm" id="f-time-${count}">
+        <option value="">-</option><option value="午前">午前</option><option value="午後">午後</option><option value="午前・午後">午前・午後</option><option value="夜">夜</option>
+      </select>
+    </div>
+    <div><label class="form-label-sm">申込期限</label><input class="form-input-sm" id="f-apply-${count}" type="date" value=""></div>
+    <div><label class="form-label-sm">費用（円）</label><input class="form-input-sm" id="f-fee-${count}" type="number" value="" placeholder="0" inputmode="numeric"></div>
+    <div><label class="form-label-sm">合格発表日</label><input class="form-input-sm" id="f-result-${count}" type="date" value=""></div>
+    <div><label class="form-label-sm">発表時刻</label><input class="form-input-sm" id="f-rtime-${count}" type="text" value="" placeholder="例：20:00"></div>
+    <div style="grid-column:1/3"><label class="form-label-sm">手続き期限</label><input class="form-input-sm" id="f-proc-${count}" type="date" value=""></div>
+  </div>`;
+  cont.appendChild(div);
+}
+function removeRound(ri){
+  const block = document.getElementById(`round-block-${ri}`);
+  if(block) block.remove();
+}
 function saveModal(isNew,id){
   const name=document.getElementById('f-name').value.trim();
   if(!name){alert('学校名を入力してください');return;}
-  const s={id,name,cat:document.getElementById('f-cat').value,status:document.getElementById('f-status').value,memo:document.getElementById('f-memo').value,source:'local',
-    rounds:[0,1,2,3,4].map(ri=>({no:ri+1,apply:document.getElementById(`f-apply-${ri}`).value,exam:document.getElementById(`f-exam-${ri}`).value,examTime:document.getElementById(`f-time-${ri}`).value,fee:document.getElementById(`f-fee-${ri}`).value,result:document.getElementById(`f-result-${ri}`).value,resultTime:document.getElementById(`f-rtime-${ri}`).value,procedure:document.getElementById(`f-proc-${ri}`).value}))};
+  const cont = document.getElementById('rounds-container');
+  const roundBlocks = cont.querySelectorAll('.round-form');
+  const rounds = [];
+  roundBlocks.forEach((block, ri) => {
+    rounds.push({
+      no: ri+1,
+      exam:       (document.getElementById(`f-exam-${ri}`)?.value||''),
+      examTime:   (document.getElementById(`f-time-${ri}`)?.value||''),
+      apply:      (document.getElementById(`f-apply-${ri}`)?.value||''),
+      fee:        (document.getElementById(`f-fee-${ri}`)?.value||''),
+      result:     (document.getElementById(`f-result-${ri}`)?.value||''),
+      resultTime: (document.getElementById(`f-rtime-${ri}`)?.value||''),
+      procedure:  (document.getElementById(`f-proc-${ri}`)?.value||''),
+      memo: '',
+    });
+  });
+  const s={id,name,cat:document.getElementById('f-cat').value,status:document.getElementById('f-status').value,memo:document.getElementById('f-memo').value,source:'local',rounds};
   let local=loadLocal();
   if(isNew){local.push(s);nextId++;}
   else{const i=local.findIndex(sc=>sc.id===id);if(i>=0)local[i]=s;}
@@ -902,8 +967,8 @@ function closeModalDirect(){document.getElementById('modal-overlay').classList.r
 
 // ── エクスポート ──
 function exportCSV(){
-  const rows=[['学校名','分類','ステータス','回','申込期限','受験日','時間帯','合格発表日','発表時刻','手続期限','手続費用','メモ']];
-  schools.forEach(s=>s.rounds.forEach(r=>rows.push([s.name,s.cat,s.status,`第${r.no}回`,r.apply,r.exam,r.examTime,r.result,r.resultTime||'',r.procedure,r.fee?yen(r.fee):'',s.memo])));
+  const rows=[['学校名','分類','ステータス','回','受験日','時間帯','申込期限','合格発表日','発表時刻','手続期限','手続費用','メモ']];
+  schools.forEach(s=>s.rounds.forEach(r=>rows.push([s.name,s.cat,s.status,r.no,r.exam,r.examTime,r.apply,r.result,r.resultTime||'',r.procedure,r.fee?yen(r.fee):'',r.memo||s.memo])));
   const csv='\uFEFF'+rows.map(r=>r.map(c=>`"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
   dl(new Blob([csv],{type:'text/csv;charset=utf-8'}),'jyuken_schedule.csv');
 }
@@ -913,7 +978,14 @@ function exportJSON(){
 function importJSON(e){
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw new Error('不正なデータ');schools=d;nextId=schools.length?Math.max(...schools.map(s=>s.id))+1:1;saveLocal(d.filter(s=>s.source==='local'));renderHome();alert('インポートしました');}catch(err){alert('失敗: '+err.message);}};
+  reader.onload=ev=>{try{
+    const d=JSON.parse(ev.target.result);
+    if(!Array.isArray(d))throw new Error('不正なデータ');
+    // 旧形式互換：roundsにmemoがない場合は補完
+    d.forEach(s=>{ if(s.rounds) s.rounds.forEach(r=>{ if(!r.memo) r.memo=''; }); });
+    schools=d;nextId=schools.length?Math.max(...schools.map(s=>s.id))+1:1;
+    saveLocal(d.filter(s=>s.source==='local'));renderHome();alert('インポートしました');
+  }catch(err){alert('失敗: '+err.message);}};
   reader.readAsText(file);e.target.value='';
 }
 function dl(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
