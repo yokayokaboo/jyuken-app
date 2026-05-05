@@ -299,7 +299,7 @@ let sheetUrl = loadSheetUrl();
 let nextId = schools.length ? Math.max(...schools.map(s=>s.id))+1 : 1;
 let editingId = null;
 
-function mkRound(no){ return {no,apply:'',exam:'',examTime:'',result:'',resultTime:'',procedure:'',fee:'',memo:''}; }
+function mkRound(no){ return {no,tag:'',apply:'',exam:'',examTime:'',result:'',resultTime:'',procedure:'',fee:'',memo:''}; }
 function mkSchool(id){ return {id,name:'',cat:'本命',status:'申込前',memo:'',rounds:[mkRound(1)],source:'local'}; }
 
 function today(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
@@ -334,9 +334,12 @@ function parseCSV(text){
     const name = get(0);
     if(!name || name==='学校名') continue;
 
-    const roundNo = parseInt(get(3))||1;
+    const roundRaw = get(3)||'1';
+    const roundNo = parseInt(roundRaw)||1;
+    const roundTag = roundRaw.includes('_') ? roundRaw.split('_').slice(1).join('_') : '';
     const round = {
       no:         roundNo,
+      tag:        roundTag,
       exam:       get(4),
       examTime:   get(5),
       apply:      get(6),
@@ -566,8 +569,9 @@ function schoolCard(s){
     if(r.result){const n=daysLeft(r.result);rows.push(`<div class="tl-row"><div class="tl-label">合格発表</div><div class="tl-date ${dateClass(n)}">${fmtDate(r.result)}</div><div class="tl-time">${r.resultTime||''}</div>${daysTag(n)}</div>`);}
     if(r.procedure){const n=daysLeft(r.procedure);rows.push(`<div class="tl-row"><div class="tl-label">手続期限</div><div class="tl-date ${dateClass(n)}">${fmtDate(r.procedure)}</div>${daysTag(n)}</div>`);}
     if(!rows.length) return '';
+    const tagDisp = r.tag ? `・${r.tag}` : '';
     const feeHtml=r.fee?`<span class="fee-tag">${yen(r.fee)}</span>`:'';
-    return `<div class="round-label">第${r.no}回 ${feeHtml}</div><div class="timeline">${rows.join('')}</div>`;
+    return `<div class="round-label">第${r.no}回${tagDisp} ${feeHtml}</div><div class="timeline">${rows.join('')}</div>`;
   }).join('');
   const memoHtml=s.memo?`<div style="font-size:12px;color:var(--text3);padding-top:8px;border-top:1px solid var(--border);margin-top:8px">${s.memo}</div>`:'';
   const editBtn=s.source==='local'?`<button onclick="openEditModal(${s.id})" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:6px 12px;font-size:12px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;white-space:nowrap">編集</button>`:`<span style="font-size:10px;color:var(--text3);padding:6px 8px">シート連携</span>`;
@@ -619,14 +623,17 @@ function renderGanttControls(){
       sortedRounds.forEach(r => {
         const key = ganttCheckKey(s.id, r.no);
         if(ganttChecks[key] === undefined) ganttChecks[key] = true;
-        let label = `第${r.no}回`;
+        const tagStr = r.tag ? `・${r.tag}` : '';
+        let label = `第${r.no}回${tagStr}`;
         if(r.exam){
           const d = new Date(r.exam+'T00:00');
-          const mmdd = `${d.getMonth()+1}/${d.getDate()}`;
-          const time = r.examTime || '';
-          label = `第${r.no}回（${mmdd}${time?' '+time:''}）`;
+          if(!isNaN(d.getTime())){
+            const mmdd = `${d.getMonth()+1}/${d.getDate()}`;
+            const time = r.examTime || '';
+            label = `第${r.no}回${tagStr}（${mmdd}${time?' '+time:''}）`;
+          }
         } else if(r.examTime){
-          label = `第${r.no}回（${r.examTime}）`;
+          label = `第${r.no}回${tagStr}（${r.examTime}）`;
         }
         roundsRow.innerHTML += `
         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer;white-space:nowrap">
@@ -744,8 +751,8 @@ function renderGanttChart(){
     const wd = d.getDay(); const isSat=wd===6; const isSun=wd===0;
     const isToday = d.getTime()===todayD.getTime();
     const col = isToday?'var(--red)':isSat||isSun?'var(--accent2)':'var(--text3)';
-    const show = d.getDate()===1||i===0||d.getDate()%5===0;
-    html += `<div style="width:${DAY_W}px;flex-shrink:0;font-size:9px;color:${col};text-align:center;border-right:1px solid var(--border)">${show?d.getDate():''}</div>`;
+    const fontW = isSat||isSun||isToday?'700':'400';
+    html += `<div style="width:${DAY_W}px;flex-shrink:0;font-size:9px;color:${col};font-weight:${fontW};text-align:center;border-right:1px solid var(--border)">${d.getDate()}</div>`;
   }
   html += '</div>';
 
@@ -764,25 +771,26 @@ function renderGanttChart(){
 
   // ── データ行 ──
   targets.forEach(({s, r}) => {
+    // 受験日があれば「2/1」形式で表示
+    const examDateStr = r.exam ? (()=>{ const d=new Date(r.exam+'T00:00'); return isNaN(d)?'':` ${d.getMonth()+1}/${d.getDate()}`; })() : '';
+    const tagStr2 = r.tag ? `・${r.tag}` : '';
+    const timeLabel2 = `第${r.no}回${tagStr2}${examDateStr}${r.examTime?' '+r.examTime:''}`;
     html += `<div style="display:flex;align-items:center;margin-bottom:2px;height:${ROW_H}px">`;
-    // ラベル
-    const roundLabel = `${s.name} `;
-    const timeLabel = r.examTime ? `(${r.examTime.replace('午前・午後','両')})` : `第${r.no}回`;
     html += `<div style="width:${LABEL}px;flex-shrink:0;overflow:hidden;white-space:nowrap">
       <div style="font-size:10px;font-weight:500;color:var(--text2);text-overflow:ellipsis;overflow:hidden">${s.name}</div>
-      <div style="font-size:9px;color:var(--text3)">${timeLabel}</div>
+      <div style="font-size:9px;color:var(--text3)">${timeLabel2}</div>
     </div>`;
 
     // イベントをキーとスロットにマッピング
     // スロット: 0=午前, 1=午後, 2=夜
     const events = {}; // date -> {slot, type, color, label}[]
-    function addEv(date, slot, type, color, lbl){
+    function addEv(date, slot, type, color, lbl, timeStr=''){
       if(!date) return;
       const d = new Date(date+'T00:00');
       if(isNaN(d)) return;
       const key = date;
       if(!events[key]) events[key]=[];
-      events[key].push({slot, type, color, lbl});
+      events[key].push({slot, type, color, lbl, timeStr});
     }
     if(r.apply)     addEv(r.apply,    1, 'apply',     '#7c6fe0', '申');
     if(r.exam){
@@ -796,9 +804,16 @@ function renderGanttChart(){
       const rt = r.resultTime||'';
       const hr = parseInt(rt.split(':')[0])||0;
       const slot = hr>=18?2:hr>=12?1:0;
-      addEv(r.result, slot, 'result', '#4ade9a', '発');
+      // 時刻表示用：HH:MMの形式に整形
+      const dispTime = rt ? rt.replace(/^(\d{1,2}):(\d{2}).*/, '$1:$2') : '';
+      addEv(r.result, slot, 'result', '#4ade9a', '発', dispTime);
     }
-    if(r.procedure) addEv(r.procedure, 1, 'procedure', '#60a5f0', '手');
+    if(r.procedure){
+      // 手続期限は午後スロット。procedureTimeがある場合は時刻表示
+      const pt = r.procedureTime||'';
+      const dispTime = pt ? pt.replace(/^(\d{1,2}):(\d{2}).*/, '$1:$2') : '';
+      addEv(r.procedure, 1, 'procedure', '#60a5f0', '手', dispTime);
+    }
 
     for(let i=0;i<DAYS;i++){
       const d = new Date(START); d.setDate(d.getDate()+i);
@@ -811,7 +826,9 @@ function renderGanttChart(){
         const ev = dayEvs.find(e=>e.slot===slot);
         const border = slot===2?'border-right:1px solid var(--border)':'border-right:1px solid rgba(255,255,255,0.03)';
         if(ev){
-          html+=`<div style="width:${SLOT_W}px;flex-shrink:0;height:${ROW_H}px;background:${ev.color};display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#000;${border}" title="${s.name} 第${r.no}回 ${ev.type}">${ev.lbl}</div>`;
+          const timeStr = ev.timeStr || '';
+          const titleStr = `${s.name} 第${r.no}回 ${ev.type}${timeStr?' '+timeStr:''}`;
+          html+=`<div style="width:${SLOT_W}px;flex-shrink:0;height:${ROW_H}px;background:${ev.color};display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;color:#000;${border};overflow:hidden" title="${titleStr}"><div style="font-size:7px;line-height:1.1">${ev.lbl}</div>${timeStr?'<div style="font-size:5px;line-height:1;opacity:0.8">'+timeStr+'</div>':''}</div>`;
         } else {
           html+=`<div style="width:${SLOT_W}px;flex-shrink:0;height:${ROW_H}px;background:${dayBg};${border}"></div>`;
         }
