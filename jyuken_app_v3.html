@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="受験管理">
+<meta name="theme-color" content="#1a1a2e">
+<title>中学受験スケジュール管理</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#0f0f1a;--surface:#1a1a2e;--surface2:#252540;--surface3:#2e2e50;
+  --accent:#7c6fe0;--accent2:#a89bef;--accent-soft:rgba(124,111,224,0.15);
+  --green:#4ade9a;--green-soft:rgba(74,222,154,0.12);
+  --amber:#f5c842;--amber-soft:rgba(245,200,66,0.12);
+  --red:#f06060;--red-soft:rgba(240,96,96,0.12);
+  --blue:#60a5f0;--blue-soft:rgba(96,165,240,0.12);
+  --text:#e8e8f0;--text2:#9898b8;--text3:#5a5a78;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --radius:14px;--radius-sm:8px;
+  --safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;overflow-x:hidden;font-size:14px;line-height:1.5}
+#app{display:flex;flex-direction:column;min-height:100dvh}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:calc(var(--safe-top) + 12px) 16px 12px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header-title{font-size:16px;font-weight:700;letter-spacing:.02em}
+.header-title span{color:var(--accent2)}
+.header-sub{font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:1px}
+.sync-btn{background:var(--accent-soft);border:1px solid rgba(124,111,224,0.3);color:var(--accent2);border-radius:20px;padding:5px 12px;font-size:12px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;display:flex;align-items:center;gap:5px}
+.sync-btn:active{opacity:.8}
+.sync-btn.spinning svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;padding-bottom:var(--safe-bottom);z-index:100}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px;background:none;border:none;color:var(--text3);font-size:10px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:color .2s}
+.nav-btn.active{color:var(--accent2)}
+.nav-btn svg{width:22px;height:22px}
+.page{flex:1;overflow-y:auto;padding:16px 16px calc(70px + var(--safe-bottom) + 16px);display:none}
+.page.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
+.card-header{padding:14px 16px 12px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.card-body{padding:0 16px 14px}
+.card-name{font-size:16px;font-weight:700;line-height:1.3}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap;flex-shrink:0}
+.badge-challenge{background:rgba(124,111,224,.2);color:var(--accent2)}
+.badge-main{background:rgba(96,165,240,.2);color:var(--blue)}
+.badge-safety{background:rgba(74,222,154,.2);color:var(--green)}
+.badge-public{background:rgba(245,200,66,.2);color:var(--amber)}
+.status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}
+.status-pending{background:var(--surface3);color:var(--text2)}
+.status-applied{background:var(--blue-soft);color:var(--blue)}
+.status-exam{background:var(--amber-soft);color:var(--amber)}
+.status-pass{background:var(--green-soft);color:var(--green)}
+.status-fail{background:var(--red-soft);color:var(--red)}
+.status-done{background:var(--green-soft);color:var(--green)}
+.timeline{display:flex;flex-direction:column;gap:0}
+.tl-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border)}
+.tl-label{font-size:11px;color:var(--text3);width:58px;flex-shrink:0}
+.tl-date{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;flex:1}
+.tl-date.urgent{color:var(--red)}
+.tl-date.soon{color:var(--amber)}
+.tl-date.done{color:var(--text3);text-decoration:line-through}
+.tl-time{font-size:11px;color:var(--text2);white-space:nowrap}
+.tl-days{font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:4px;white-space:nowrap}
+.tl-days.urgent{background:var(--red-soft);color:var(--red)}
+.tl-days.soon{background:var(--amber-soft);color:var(--amber)}
+.tl-days.ok{background:var(--surface3);color:var(--text3)}
+.tl-days.past{color:var(--text3)}
+.fee-tag{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;color:var(--accent2);background:var(--accent-soft);padding:2px 8px;border-radius:4px}
+.round-label{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.08em;padding:8px 0 4px;text-transform:uppercase}
+.alert-banner{background:var(--red-soft);border:1px solid rgba(240,96,96,.3);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--red);display:flex;gap:8px;align-items:flex-start}
+.alert-banner svg{flex-shrink:0;margin-top:1px}
+.alert-list{list-style:none;display:flex;flex-direction:column;gap:3px}
+.summary-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+.summary-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px}
+.summary-card .s-label{font-size:10px;color:var(--text3);margin-bottom:4px}
+.summary-card .s-value{font-size:20px;font-weight:700;font-family:'DM Mono',monospace}
+.summary-card .s-unit{font-size:11px;color:var(--text2)}
+.gantt-wrap{overflow-x:auto;margin-bottom:16px}
+.section-title{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;margin-top:4px}
+.empty{text-align:center;padding:48px 20px;color:var(--text3)}
+.empty-icon{font-size:40px;margin-bottom:12px}
+.empty-text{font-size:14px;line-height:1.7}
+
+/* ── 接続設定UI ── */
+.connect-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.connect-card h3{font-size:15px;font-weight:700;margin-bottom:8px}
+.connect-card p{font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:14px}
+.connect-input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-family:'Noto Sans JP',sans-serif;padding:11px 13px;outline:none;margin-bottom:10px;-webkit-appearance:none}
+.connect-input:focus{border-color:var(--accent)}
+.connect-input::placeholder{color:var(--text3)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border-radius:var(--radius-sm);font-size:14px;font-family:'Noto Sans JP',sans-serif;font-weight:500;border:none;cursor:pointer;transition:all .15s;text-align:center}
+.btn-primary{background:var(--accent);color:#fff;width:100%}
+.btn-primary:active{opacity:.85;transform:scale(.98)}
+.btn-danger{background:var(--red-soft);color:var(--red);border:1px solid rgba(240,96,96,.3);width:100%;margin-top:8px}
+.btn-secondary{background:var(--surface2);color:var(--text2);border:1px solid var(--border2);width:100%;margin-top:8px}
+
+/* ── 編集モーダル ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:flex-end}
+.modal-overlay.open{display:flex}
+.modal-sheet{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-height:90dvh;overflow-y:auto;padding:0 0 calc(20px + var(--safe-bottom));animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto}
+.modal-title{font-size:17px;font-weight:700;padding:4px 16px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-body{padding:16px}
+.form-group{margin-bottom:14px}
+.form-label{font-size:11px;font-weight:500;color:var(--text3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px;display:block}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:15px;font-family:'Noto Sans JP',sans-serif;padding:11px 13px;outline:none;transition:border-color .2s;-webkit-appearance:none}
+.form-input:focus{border-color:var(--accent)}
+.form-input[type=date]{color-scheme:dark}
+.seg-control{display:flex;gap:4px;background:var(--surface2);border-radius:var(--radius-sm);padding:3px}
+.seg-btn{flex:1;padding:8px 4px;border:none;border-radius:6px;background:transparent;color:var(--text2);font-size:12px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:all .15s}
+.seg-btn.active{background:var(--surface3);color:var(--text);font-weight:500}
+.round-form{background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-bottom:10px}
+.round-form-title{font-size:11px;font-weight:700;color:var(--accent2);letter-spacing:.08em;margin-bottom:10px;text-transform:uppercase}
+.form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.form-input-sm{width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:'Noto Sans JP',sans-serif;padding:8px 10px;outline:none;-webkit-appearance:none}
+.form-input-sm:focus{border-color:var(--accent)}
+.form-input-sm[type=date]{color-scheme:dark}
+.form-label-sm{font-size:10px;color:var(--text3);margin-bottom:4px;display:block}
+
+/* 設定 */
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--surface);cursor:pointer}
+.setting-row:first-child{border-radius:var(--radius) var(--radius) 0 0}
+.setting-row:last-child{border-bottom:none;border-radius:0 0 var(--radius) var(--radius)}
+.setting-label{font-size:14px}
+.setting-sub{font-size:11px;color:var(--text3);margin-top:1px}
+.setting-arrow{color:var(--text3);font-size:16px}
+
+/* ステータス連動色 */
+.connected-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:5px}
+.disconnected-dot{width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block;margin-right:5px}
+
+.add-fab{position:fixed;bottom:calc(60px + var(--safe-bottom) + 16px);right:16px;width:52px;height:52px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(124,111,224,.4);cursor:pointer;z-index:90;transition:transform .15s}
+.add-fab:active{transform:scale(.93)}
+
+.info-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.8}
+.info-box strong{color:var(--accent2)}
+.step-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.step-num{width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent2);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div>
+      <div class="header-title"><span>受験</span>スケジュール</div>
+      <div class="header-sub" id="header-sub">未接続</div>
+    </div>
+    <button class="sync-btn" id="sync-btn" onclick="syncData()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      更新
+    </button>
+  </div>
+
+  <div class="page active" id="page-home">
+    <div id="alert-area"></div>
+    <div class="summary-row" id="summary-area"></div>
+    <div id="connect-prompt"></div>
+    <div class="section-title" id="list-title" style="display:none">受験校一覧</div>
+    <div id="school-list"></div>
+  </div>
+
+  <div class="page" id="page-gantt">
+    <div class="section-title">1月〜2月 入試スケジュール</div>
+    <div class="card">
+      <div class="card-body" style="padding-top:14px">
+        <div id="gantt-wrap"></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3)"><div style="width:12px;height:12px;border-radius:3px;background:#7c6fe0"></div>申込</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3)"><div style="width:12px;height:12px;border-radius:3px;background:#f5c842"></div>受験</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3)"><div style="width:12px;height:12px;border-radius:3px;background:#4ade9a"></div>発表</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3)"><div style="width:12px;height:12px;border-radius:3px;background:#60a5f0"></div>手続</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page" id="page-settings">
+    <div class="section-title">Googleスプレッドシート接続</div>
+    <div class="connect-card">
+      <h3 id="conn-status-title">スプレッドシートに接続</h3>
+      <div id="conn-status-area"></div>
+      <div class="info-box" id="setup-guide">
+        <div class="step-row"><div class="step-num">1</div><div>下のテンプレートをGoogleドライブにアップロードし、Googleスプレッドシートとして開く</div></div>
+        <div class="step-row"><div class="step-num">2</div><div>スプレッドシート右上「共有」→「リンクを知っている全員」→「<strong>閲覧者</strong>」に設定</div></div>
+        <div class="step-row"><div class="step-num">3</div><div>スプレッドシートのURLをコピーして下に貼り付ける</div></div>
+      </div>
+      <input class="connect-input" id="sheet-url-input" type="url" placeholder="https://docs.google.com/spreadsheets/d/..." autocomplete="off">
+      <button class="btn btn-primary" onclick="connectSheet()">接続する</button>
+      <div id="conn-error" style="color:var(--red);font-size:12px;margin-top:8px;display:none"></div>
+    </div>
+
+    <div class="section-title">手動編集</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="setting-row" onclick="openAddModal()">
+        <div><div class="setting-label">学校を追加</div><div class="setting-sub">ローカルに手動追加</div></div>
+        <div class="setting-arrow">+</div>
+      </div>
+      <div class="setting-row" onclick="exportCSV()">
+        <div><div class="setting-label">CSVエクスポート</div><div class="setting-sub">現在のデータを書き出す</div></div>
+        <div class="setting-arrow">↓</div>
+      </div>
+      <div class="setting-row" onclick="exportJSON()">
+        <div><div class="setting-label">JSONバックアップ</div><div class="setting-sub">全データを保存</div></div>
+        <div class="setting-arrow">↓</div>
+      </div>
+      <div class="setting-row" onclick="document.getElementById('import-file').click()">
+        <div><div class="setting-label">JSONインポート</div><div class="setting-sub">バックアップから復元</div></div>
+        <div class="setting-arrow">↑</div>
+      </div>
+    </div>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
+
+    <div class="section-title">アプリ情報</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="setting-row">
+        <div><div class="setting-label">ホーム画面に追加</div><div class="setting-sub">Safari → 共有 → ホーム画面に追加</div></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">バージョン</div></div>
+        <div class="setting-arrow" style="font-family:'DM Mono';font-size:12px">2.0.0</div>
+      </div>
+    </div>
+    <button class="btn btn-danger" onclick="if(confirm('全データをリセットしますか？'))clearAll()">データをすべてリセット</button>
+  </div>
+
+  <nav class="nav">
+    <button class="nav-btn active" onclick="switchPage('home',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>ホーム
+    </button>
+    <button class="nav-btn" onclick="switchPage('gantt',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>チャート
+    </button>
+    <button class="nav-btn" onclick="switchPage('settings',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>設定
+    </button>
+  </nav>
+
+  <button class="add-fab" onclick="openAddModal()" id="fab">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
+  <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">
+        <span id="modal-title-text">学校を追加</span>
+        <button onclick="closeModalDirect()" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;line-height:1">×</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DB_KEY = 'jyuken_v2';
+const SHEET_KEY = 'jyuken_sheet_url';
+const CATS = ['チャレンジ','本命','安全校','都立'];
+const STATUSES = ['申込前','申込済','受験予定','合格','不合格','手続き完了'];
+const BAR = {apply:'#7c6fe0',exam:'#f5c842',result:'#4ade9a',procedure:'#60a5f0'};
+
+function loadLocal(){ try{return JSON.parse(localStorage.getItem(DB_KEY))||[];}catch(e){return[];} }
+function saveLocal(d){ try{localStorage.setItem(DB_KEY,JSON.stringify(d));}catch(e){} }
+function loadSheetUrl(){ return localStorage.getItem(SHEET_KEY)||''; }
+function saveSheetUrl(u){ localStorage.setItem(SHEET_KEY,u); }
+
+let schools = loadLocal();
+let sheetUrl = loadSheetUrl();
+let nextId = schools.length ? Math.max(...schools.map(s=>s.id))+1 : 1;
+let editingId = null;
+
+function mkRound(no){ return {no,apply:'',exam:'',examTime:'',result:'',resultTime:'',procedure:'',fee:''}; }
+function mkSchool(id){ return {id,name:'',cat:'本命',status:'申込前',memo:'',rounds:[mkRound(1),mkRound(2),mkRound(3)],source:'local'}; }
+
+function today(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+function parseDate(s){ if(!s) return null; const d=new Date(s+'T00:00'); return isNaN(d)?null:d; }
+function fmtDate(s){
+  const d=parseDate(s); if(!d) return '';
+  return `${d.getMonth()+1}/${d.getDate()}(${['日','月','火','水','木','金','土'][d.getDay()]})`;
+}
+function daysLeft(s){ const d=parseDate(s); if(!d) return null; return Math.ceil((d-today())/86400000); }
+function yen(v){ if(v===''||v===undefined||v===null) return ''; const n=parseInt(v); if(isNaN(n)) return ''; return n===0?'無料':'¥'+n.toLocaleString(); }
+function catBadge(cat){ const m={'チャレンジ':'challenge','本命':'main','安全校':'safety','都立':'public'}; return `<span class="badge badge-${m[cat]||'main'}">${cat}</span>`; }
+function statusPill(st){ const m={'申込前':'pending','申込済':'applied','受験予定':'exam','合格':'pass','不合格':'fail','手続き完了':'done'}; return `<span class="status-pill status-${m[st]||'pending'}">${st}</span>`; }
+function daysTag(n){ if(n===null) return ''; if(n<0) return `<span class="tl-days past">終了</span>`; if(n<=3) return `<span class="tl-days urgent">あと${n}日</span>`; if(n<=7) return `<span class="tl-days soon">あと${n}日</span>`; return `<span class="tl-days ok">あと${n}日</span>`; }
+function dateClass(n){ if(n===null||n<0) return 'done'; if(n<=3) return 'urgent'; if(n<=7) return 'soon'; return ''; }
+
+// ── Googleスプレッドシート読み込み ──
+function sheetIdFromUrl(url){
+  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+function csvUrlFromId(id){ return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=%E5%8F%97%E9%A8%93%E3%82%B9%E3%82%B1%E3%82%B8%E3%83%A5%E3%83%BC%E3%83%AB`; }
+
+function parseCSV(text){
+  const lines = text.trim().split('\n');
+  const result = [];
+  // フィールド数: 基本3 + 回ごと7 + メモ1 = 3+7*5+1=39
+  const FIELDS_PER_ROUND = 7;
+  const BASE = 3;
+  const MAX_ROUNDS = 5;
+  for(let i=1; i<lines.length; i++){
+    const cols = csvLineParse(lines[i]);
+    if(!cols[0] || cols[0].trim()==='' || cols[0].includes('学校名')) continue;
+    const get = (idx) => (cols[idx]||'').replace(/^"|"$/g,'').trim();
+    const memoIdx = BASE + FIELDS_PER_ROUND * MAX_ROUNDS;
+    const rounds = [];
+    for(let r=0; r<MAX_ROUNDS; r++){
+      const base = BASE + r * FIELDS_PER_ROUND;
+      rounds.push({
+        no: r+1,
+        apply:    get(base+0),
+        exam:     get(base+1),
+        examTime: get(base+2),
+        result:   get(base+3),
+        resultTime: get(base+4),
+        procedure: get(base+5),
+        fee:      get(base+6).replace(/[^0-9]/g,''),
+      });
+    }
+    const school = {
+      id: 1000+i, name: get(0), cat: get(1)||'本命', status: get(2)||'申込前',
+      memo: get(memoIdx)||'', source:'sheet', rounds
+    };
+    if(school.name) result.push(school);
+  }
+  return result;
+}
+function csvLineParse(line){
+  const result=[]; let cur=''; let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){ if(inQ&&line[i+1]==='"'){cur+='"';i++;}else{inQ=!inQ;} }
+    else if(ch===','&&!inQ){ result.push(cur); cur=''; }
+    else cur+=ch;
+  }
+  result.push(cur); return result;
+}
+
+// ── GAS URL対応 ──
+function isGasUrl(url){ return url.includes('script.google.com/macros/s/') && url.includes('/exec'); }
+function isSheetUrl(url){ return url.includes('docs.google.com/spreadsheets/d/'); }
+
+async function fetchSheet(url){
+  url = url.trim();
+  if(isGasUrl(url)){
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('GASの読み込みに失敗しました（' + res.status + '）');
+    const text = await res.text();
+    if(text.startsWith('ERROR:')) throw new Error('GASエラー: ' + text);
+    return parseCSV(text);
+  } else if(isSheetUrl(url)){
+    const id = sheetIdFromUrl(url);
+    if(!id) throw new Error('スプレッドシートのURLが正しくありません');
+    const csvUrl = csvUrlFromId(id);
+    const res = await fetch(csvUrl);
+    if(!res.ok) throw new Error('スプレッドシートの読み込みに失敗しました。\n共有設定を「リンクを知っている全員が閲覧可」にしてください。');
+    const text = await res.text();
+    return parseCSV(text);
+  } else {
+    throw new Error('URLの形式が正しくありません。\nGASのデプロイURL（script.google.com/macros/s/.../exec）を入力してください。');
+  }
+}
+
+async function connectSheet(){
+  const url = document.getElementById('sheet-url-input').value.trim();
+  const errEl = document.getElementById('conn-error');
+  errEl.style.display='none';
+  if(!url){ errEl.textContent='URLを入力してください'; errEl.style.display='block'; return; }
+  const btn = document.querySelector('#page-settings .btn-primary');
+  btn.textContent='接続中...'; btn.disabled=true;
+  try{
+    const data = await fetchSheet(url);
+    saveSheetUrl(url); sheetUrl=url;
+    schools = [...data, ...loadLocal().filter(s=>s.source==='local')];
+    saveLocal(loadLocal().filter(s=>s.source==='local'));
+    renderSettings();
+    switchPageDirect('home');
+    renderHome();
+    alert(`接続成功！ ${data.length}校を読み込みました`);
+  } catch(e){
+    errEl.textContent = e.message; errEl.style.display='block';
+  } finally{ btn.textContent='接続する'; btn.disabled=false; }
+}
+
+async function syncData(){
+  if(!sheetUrl){ alert('設定画面でスプレッドシートを接続してください'); return; }
+  const btn=document.getElementById('sync-btn'); btn.classList.add('spinning');
+  try{
+    const data = await fetchSheet(sheetUrl);
+    const localOnly = loadLocal().filter(s=>s.source==='local');
+    schools = [...data, ...localOnly];
+    renderHome();
+    document.getElementById('header-sub').textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}`;
+  } catch(e){ alert('更新失敗: '+e.message); }
+  finally{ btn.classList.remove('spinning'); }
+}
+
+// ── ページ切り替え ──
+function switchPage(name, btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  btn.classList.add('active');
+  document.getElementById('fab').style.display = name==='home'?'flex':'none';
+  if(name==='home') renderHome();
+  if(name==='gantt') renderGantt();
+  if(name==='settings') renderSettings();
+}
+function switchPageDirect(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelector(`[onclick="switchPage('${name}',this)"]`)?.classList.add('active');
+  document.getElementById('fab').style.display = name==='home'?'flex':'none';
+}
+
+// ── ホーム ──
+function renderHome(){
+  renderHeader();
+  renderAlerts();
+  renderSummary();
+  renderConnectPrompt();
+  renderSchoolList();
+}
+function renderHeader(){
+  const sub=document.getElementById('header-sub');
+  if(sheetUrl) sub.innerHTML=`<span class="connected-dot"></span>接続済み · ${schools.length}校`;
+  else sub.innerHTML=`<span class="disconnected-dot"></span>未接続 · ${schools.length}校`;
+}
+function renderAlerts(){
+  const area=document.getElementById('alert-area');
+  const alerts=[];
+  schools.forEach(s=>s.rounds.forEach(r=>{
+    if(r.apply){const n=daysLeft(r.apply);if(n!==null&&n>=0&&n<=7)alerts.push(`${s.name} 第${r.no}回 申込期限 ${fmtDate(r.apply)}（あと${n}日）`);}
+    if(r.procedure){const n=daysLeft(r.procedure);if(n!==null&&n>=0&&n<=7)alerts.push(`${s.name} 第${r.no}回 手続期限 ${fmtDate(r.procedure)}（あと${n}日）`);}
+  }));
+  if(!alerts.length){area.innerHTML='';return;}
+  area.innerHTML=`<div class="alert-banner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><div><div style="font-weight:700;margin-bottom:4px">期限が近い項目</div><ul class="alert-list">${alerts.map(a=>`<li>• ${a}</li>`).join('')}</ul></div></div>`;
+}
+function renderSummary(){
+  const area=document.getElementById('summary-area');
+  const total=schools.length;
+  const totalFee=schools.reduce((s,sc)=>s+sc.rounds.reduce((r2,r)=>r2+(parseInt(r.fee)||0),0),0);
+  const examDays=new Set(schools.flatMap(s=>s.rounds.filter(r=>r.exam).map(r=>r.exam))).size;
+  area.innerHTML=`
+    <div class="summary-card"><div class="s-label">登録校数</div><div class="s-value">${total}<span class="s-unit"> 校</span></div></div>
+    <div class="summary-card"><div class="s-label">受験日数</div><div class="s-value">${examDays}<span class="s-unit"> 日</span></div></div>
+    <div class="summary-card"><div class="s-label">費用概算</div><div class="s-value" style="font-size:${totalFee>=1000000?'15px':'20px'}">${totalFee?'¥'+totalFee.toLocaleString():'-'}</div></div>`;
+}
+function renderConnectPrompt(){
+  const prompt=document.getElementById('connect-prompt');
+  const title=document.getElementById('list-title');
+  if(!sheetUrl && schools.length===0){
+    title.style.display='none';
+    prompt.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">スプレッドシートに接続すると<br>データが自動で読み込まれます<br><br><button class="btn btn-primary" style="width:auto;padding:10px 24px;margin-top:8px" onclick="switchPageDirect('settings');document.getElementById('page-settings').querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'))">設定画面へ</button></div></div>`;
+  } else {
+    title.style.display='block';
+    prompt.innerHTML='';
+  }
+}
+function renderSchoolList(){
+  const list=document.getElementById('school-list');
+  if(!schools.length){list.innerHTML='';return;}
+  const order=['チャレンジ','本命','安全校','都立'];
+  const sorted=[...schools].sort((a,b)=>order.indexOf(a.cat)-order.indexOf(b.cat));
+  list.innerHTML=sorted.map(s=>schoolCard(s)).join('');
+}
+function schoolCard(s){
+  const activeRounds=s.rounds.filter(r=>r.apply||r.exam||r.result||r.procedure||r.fee);
+  const roundsHtml=activeRounds.map(r=>{
+    const rows=[];
+    if(r.apply){const n=daysLeft(r.apply);rows.push(`<div class="tl-row"><div class="tl-label">申込期限</div><div class="tl-date ${dateClass(n)}">${fmtDate(r.apply)}</div>${daysTag(n)}</div>`);}
+    if(r.exam){const n=daysLeft(r.exam);rows.push(`<div class="tl-row"><div class="tl-label">受験日</div><div class="tl-date ${dateClass(n)}">${fmtDate(r.exam)}</div><div class="tl-time">${r.examTime||''}</div>${daysTag(n)}</div>`);}
+    if(r.result){const n=daysLeft(r.result);rows.push(`<div class="tl-row"><div class="tl-label">合格発表</div><div class="tl-date ${dateClass(n)}">${fmtDate(r.result)}</div><div class="tl-time">${r.resultTime||''}</div>${daysTag(n)}</div>`);}
+    if(r.procedure){const n=daysLeft(r.procedure);rows.push(`<div class="tl-row"><div class="tl-label">手続期限</div><div class="tl-date ${dateClass(n)}">${fmtDate(r.procedure)}</div>${daysTag(n)}</div>`);}
+    if(!rows.length) return '';
+    const feeHtml=r.fee?`<span class="fee-tag">${yen(r.fee)}</span>`:'';
+    return `<div class="round-label">第${r.no}回 ${feeHtml}</div><div class="timeline">${rows.join('')}</div>`;
+  }).join('');
+  const memoHtml=s.memo?`<div style="font-size:12px;color:var(--text3);padding-top:8px;border-top:1px solid var(--border);margin-top:8px">${s.memo}</div>`:'';
+  const editBtn=s.source==='local'?`<button onclick="openEditModal(${s.id})" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:6px 12px;font-size:12px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;white-space:nowrap">編集</button>`:`<span style="font-size:10px;color:var(--text3);padding:6px 8px">シート連携</span>`;
+  return `<div class="card">
+    <div class="card-header">
+      <div><div class="card-name">${s.name}</div><div style="display:flex;gap:6px;margin-top:6px;align-items:center">${catBadge(s.cat)} ${statusPill(s.status)}</div></div>
+      ${editBtn}
+    </div>
+    ${activeRounds.length?`<div class="card-body"><div class="timeline">${roundsHtml}</div>${memoHtml}</div>`:''}
+  </div>`;
+}
+
+// ── ガント ──
+function renderGantt(){
+  const wrap=document.getElementById('gantt-wrap');
+  const START=new Date('2027-01-10T00:00'); const END=new Date('2027-02-20T00:00');
+  const DAYS=Math.ceil((END-START)/86400000)+1;
+  const CELL=16; const LABEL=80; const todayD=today();
+  if(!schools.length){wrap.innerHTML='<div style="color:var(--text3);font-size:13px;padding:20px 0">学校を追加するとチャートが表示されます</div>';return;}
+  let html=`<div style="overflow-x:auto"><div style="min-width:${LABEL+DAYS*CELL}px">`;
+  html+=`<div style="display:flex;margin-bottom:2px"><div style="width:${LABEL}px;flex-shrink:0"></div>`;
+  for(let i=0;i<DAYS;i++){const d=new Date(START);d.setDate(d.getDate()+i);const wd=d.getDay();const show=d.getDate()===1||i===0||d.getDate()%5===0;html+=`<div style="width:${CELL}px;flex-shrink:0;font-size:9px;color:${wd===0||wd===6?'var(--accent2)':'var(--text3)'};font-family:'DM Mono',monospace;text-align:center">${show?d.getDate():''}</div>`;}
+  html+='</div>';
+  html+=`<div style="display:flex;margin-bottom:6px"><div style="width:${LABEL}px;flex-shrink:0"></div><div style="width:${CELL*22}px;font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;padding-left:2px">1月</div><div style="width:${CELL*28}px;font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;padding-left:2px">2月</div></div>`;
+  schools.forEach(s=>{
+    const ev={};
+    s.rounds.forEach(r=>{
+      if(r.apply) ev[r.apply]=(ev[r.apply]||[]).concat({t:'apply'});
+      if(r.exam)  ev[r.exam] =(ev[r.exam] ||[]).concat({t:'exam'});
+      if(r.result) ev[r.result]=(ev[r.result]||[]).concat({t:'result'});
+      if(r.procedure) ev[r.procedure]=(ev[r.procedure]||[]).concat({t:'procedure'});
+    });
+    const lbl={apply:'申',exam:'験',result:'発',procedure:'手'};
+    html+=`<div style="display:flex;align-items:center;margin-bottom:3px"><div style="width:${LABEL}px;flex-shrink:0;font-size:11px;font-weight:500;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div><div style="display:flex">`;
+    for(let i=0;i<DAYS;i++){
+      const d=new Date(START);d.setDate(d.getDate()+i);
+      const key=d.toISOString().slice(0,10);
+      const wd=d.getDay();const isToday=d.getTime()===todayD.getTime();
+      const bg=isToday?'rgba(240,96,96,0.08)':(wd===0||wd===6?'rgba(124,111,224,0.04)':'transparent');
+      let inner='';
+      if(ev[key]){const e=ev[key][0];inner=`<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${CELL-3}px;height:${CELL-3}px;border-radius:3px;background:${BAR[e.t]};display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#000">${lbl[e.t]}</div>`;}
+      html+=`<div style="width:${CELL}px;flex-shrink:0;height:26px;background:${bg};border-right:1px solid var(--border);position:relative">${inner}</div>`;
+    }
+    html+='</div></div>';
+  });
+  html+='</div></div>';
+  wrap.innerHTML=html;
+}
+
+// ── 設定 ──
+function renderSettings(){
+  const input=document.getElementById('sheet-url-input');
+  input.value=sheetUrl||'';
+  const statusArea=document.getElementById('conn-status-area');
+  if(sheetUrl){
+    statusArea.innerHTML=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:13px;color:var(--green)"><span class="connected-dot"></span>接続済み</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px;word-break:break-all">${sheetUrl}</div>`;
+  } else {
+    statusArea.innerHTML=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:13px;color:var(--red)"><span class="disconnected-dot"></span>未接続</div>`;
+  }
+}
+
+// ── ローカル編集モーダル ──
+function openAddModal(){
+  editingId=null;
+  const s=mkSchool(nextId);
+  renderModal(s,true);
+}
+function openEditModal(id){
+  editingId=id;
+  const s=loadLocal().find(sc=>sc.id===id);
+  if(!s) return;
+  renderModal(JSON.parse(JSON.stringify(s)),false);
+}
+function renderModal(s,isNew){
+  document.getElementById('modal-title-text').textContent=isNew?'学校を追加（ローカル）':'学校を編集';
+  const body=document.getElementById('modal-body');
+  body.innerHTML=`
+    <div class="form-group"><label class="form-label">学校名</label><input class="form-input" id="f-name" type="text" value="${s.name}" placeholder="例：吉祥女子" autocomplete="off"></div>
+    <div class="form-group"><label class="form-label">分類</label>
+      <div class="seg-control">${CATS.map(c=>`<button class="seg-btn${s.cat===c?' active':''}" onclick="segSelect(this,'f-cat','${c}')" data-val="${c}">${c}</button>`).join('')}</div>
+      <input type="hidden" id="f-cat" value="${s.cat}">
+    </div>
+    <div class="form-group"><label class="form-label">ステータス</label>
+      <select class="form-input" id="f-status">${STATUSES.map(st=>`<option value="${st}"${s.status===st?' selected':''}>${st}</option>`).join('')}</select>
+    </div>
+    ${s.rounds.map((r,ri)=>`
+    <div class="round-form"><div class="round-form-title">第${r.no}回</div>
+      <div class="form-grid-2">
+        <div><label class="form-label-sm">申込期限</label><input class="form-input-sm" id="f-apply-${ri}" type="date" value="${r.apply}"></div>
+        <div><label class="form-label-sm">受験日</label><input class="form-input-sm" id="f-exam-${ri}" type="date" value="${r.exam}"></div>
+        <div><label class="form-label-sm">時間帯</label>
+          <select class="form-input-sm" id="f-time-${ri}">
+            <option value="">-</option>
+            <option value="午前"${r.examTime==='午前'?' selected':''}>午前</option>
+            <option value="午後"${r.examTime==='午後'?' selected':''}>午後</option>
+            <option value="午前・午後"${r.examTime==='午前・午後'?' selected':''}>午前・午後</option>
+          </select>
+        </div>
+        <div><label class="form-label-sm">費用（円）</label><input class="form-input-sm" id="f-fee-${ri}" type="number" value="${r.fee}" placeholder="0" inputmode="numeric"></div>
+        <div><label class="form-label-sm">合格発表日</label><input class="form-input-sm" id="f-result-${ri}" type="date" value="${r.result}"></div>
+        <div><label class="form-label-sm">発表時刻</label><input class="form-input-sm" id="f-rtime-${ri}" type="text" value="${r.resultTime||''}" placeholder="例：20:00"></div>
+        <div style="grid-column:1/3"><label class="form-label-sm">手続き期限</label><input class="form-input-sm" id="f-proc-${ri}" type="date" value="${r.procedure}"></div>
+      </div>
+    </div>`).join('')}
+    <div class="form-group"><label class="form-label">メモ</label><input class="form-input" id="f-memo" type="text" value="${s.memo||''}" placeholder="備考など"></div>
+    <button class="btn btn-primary" onclick="saveModal(${isNew},${s.id})">保存</button>
+    ${!isNew?`<button class="btn btn-danger" onclick="deleteSchool(${s.id})">削除</button>`:''}
+    <button class="btn btn-secondary" onclick="closeModalDirect()">キャンセル</button>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function segSelect(btn,hiddenId,val){
+  btn.closest('.seg-control').querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(hiddenId).value=val;
+}
+function saveModal(isNew,id){
+  const name=document.getElementById('f-name').value.trim();
+  if(!name){alert('学校名を入力してください');return;}
+  const s={id,name,cat:document.getElementById('f-cat').value,status:document.getElementById('f-status').value,memo:document.getElementById('f-memo').value,source:'local',
+    rounds:[0,1,2,3,4].map(ri=>({no:ri+1,apply:document.getElementById(`f-apply-${ri}`).value,exam:document.getElementById(`f-exam-${ri}`).value,examTime:document.getElementById(`f-time-${ri}`).value,fee:document.getElementById(`f-fee-${ri}`).value,result:document.getElementById(`f-result-${ri}`).value,resultTime:document.getElementById(`f-rtime-${ri}`).value,procedure:document.getElementById(`f-proc-${ri}`).value}))};
+  let local=loadLocal();
+  if(isNew){local.push(s);nextId++;}
+  else{const i=local.findIndex(sc=>sc.id===id);if(i>=0)local[i]=s;}
+  saveLocal(local);
+  schools=[...local,...schools.filter(sc=>sc.source==='sheet')];
+  closeModalDirect(); renderHome();
+}
+function deleteSchool(id){
+  if(!confirm('削除しますか？'))return;
+  let local=loadLocal().filter(s=>s.id!==id);
+  saveLocal(local);
+  schools=[...local,...schools.filter(sc=>sc.source==='sheet')];
+  closeModalDirect(); renderHome();
+}
+function closeModal(e){if(e.target===document.getElementById('modal-overlay'))closeModalDirect();}
+function closeModalDirect(){document.getElementById('modal-overlay').classList.remove('open');}
+
+// ── エクスポート ──
+function exportCSV(){
+  const rows=[['学校名','分類','ステータス','回','申込期限','受験日','時間帯','合格発表日','発表時刻','手続期限','手続費用','メモ']];
+  schools.forEach(s=>s.rounds.forEach(r=>rows.push([s.name,s.cat,s.status,`第${r.no}回`,r.apply,r.exam,r.examTime,r.result,r.resultTime||'',r.procedure,r.fee?yen(r.fee):'',s.memo])));
+  const csv='\uFEFF'+rows.map(r=>r.map(c=>`"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+  dl(new Blob([csv],{type:'text/csv;charset=utf-8'}),'jyuken_schedule.csv');
+}
+function exportJSON(){
+  dl(new Blob([JSON.stringify(schools,null,2)],{type:'application/json'}),'jyuken_backup.json');
+}
+function importJSON(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw new Error('不正なデータ');schools=d;nextId=schools.length?Math.max(...schools.map(s=>s.id))+1:1;saveLocal(d.filter(s=>s.source==='local'));renderHome();alert('インポートしました');}catch(err){alert('失敗: '+err.message);}};
+  reader.readAsText(file);e.target.value='';
+}
+function dl(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
+function clearAll(){schools=[];saveLocal([]);saveSheetUrl('');sheetUrl='';nextId=1;renderHome();renderSettings();}
+
+// ── 初期化 ──
+renderSettings();
+renderHome();
+// 起動時にシートが設定済みなら自動同期
+if(sheetUrl){syncData();}
+</script>
+</body>
+</html>
