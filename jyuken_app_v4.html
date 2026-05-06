@@ -238,6 +238,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
       </div>
       <input class="connect-input" id="sheet-url-input" type="url" placeholder="https://docs.google.com/spreadsheets/d/..." autocomplete="off">
       <button class="btn btn-primary" onclick="connectSheet()">接続する</button>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">📝 書き込み用 GAS URL（選択状態の保存に使用）</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">GASのデプロイURLを貼り付けると、チャートの選択状態をスプレッドシートに保存できます</div>
+        <input class="connect-input" id="gas-url-input" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" style="margin-bottom:8px">
+        <button class="btn btn-primary" onclick="saveGasUrlFromInput()" style="background:var(--green);border-color:var(--green)">GAS URLを保存</button>
+        <div id="gas-status" style="font-size:11px;margin-top:6px"></div>
+      </div>
       <div id="conn-error" style="color:var(--red);font-size:12px;margin-top:8px;display:none"></div>
     </div>
 
@@ -333,6 +340,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 <script>
 const DB_KEY = 'jyuken_v2';
 const SHEET_KEY = 'jyuken_sheet_url';
+const GAS_KEY   = 'jyuken_gas_url';   // 書き込み用GAS URL
 const CATS = ['チャレンジ','本命','安全校','都立'];
 const STATUSES = ['申込前','申込済','受験予定','合格','不合格','手続き完了'];
 const BAR = {apply:'#7c6fe0',exam:'#f5c842',result:'#4ade9a',procedure:'#60a5f0'};
@@ -341,9 +349,12 @@ function loadLocal(){ try{return JSON.parse(localStorage.getItem(DB_KEY))||[];}c
 function saveLocal(d){ try{localStorage.setItem(DB_KEY,JSON.stringify(d));}catch(e){} }
 function loadSheetUrl(){ return localStorage.getItem(SHEET_KEY)||''; }
 function saveSheetUrl(u){ localStorage.setItem(SHEET_KEY,u); }
+function loadGasUrl(){ return localStorage.getItem(GAS_KEY)||''; }
+function saveGasUrl(u){ localStorage.setItem(GAS_KEY,u); }
 
 let schools = loadLocal();
 let sheetUrl = loadSheetUrl();
+let gasUrl    = loadGasUrl();
 let nextId = schools.length ? Math.max(...schools.map(s=>s.id))+1 : 1;
 let editingId = null;
 
@@ -570,6 +581,11 @@ async function syncData(){
     const data = await fetchSheet(sheetUrl);
     const localOnly = loadLocal().filter(s=>s.source==='local');
     schools = [...data, ...localOnly];
+    // GASの設定シートから選択状態を復元
+    if(sheetUrl){
+      const m = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+      if(m) await loadChecksFromGas(m[1]);
+    }
     renderHome();
     document.getElementById('header-sub').textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}`;
   } catch(e){ alert('更新失敗: '+e.message); }
@@ -738,6 +754,7 @@ function setGanttSort(mode){
   if(btnDate){ btnDate.style.background = mode==='date'?'var(--accent)':'var(--surface2)'; btnDate.style.color = mode==='date'?'#fff':'var(--text2)'; }
   renderGanttControls();
   renderGanttChart();
+  saveChecksToGas();
 }
 
 function ganttCheckKey(schoolId, roundNo){ return `${schoolId}_${roundNo}`; }
@@ -835,15 +852,18 @@ function ganttToggleSchool(schoolId, checked){
   s.rounds.forEach(r=>{ ganttChecks[ganttCheckKey(schoolId,r.no)] = checked; });
   renderGanttControls();
   renderGanttChart();
+  saveChecksToGas();
 }
 function ganttToggleRound(schoolId, roundNo, checked){
   ganttChecks[ganttCheckKey(schoolId,roundNo)] = checked;
   renderGanttChart();
+  saveChecksToGas();
 }
 function ganttSelectAll(checked){
   schools.forEach(s=>s.rounds.forEach(r=>{ ganttChecks[ganttCheckKey(s.id,r.no)] = checked; }));
   renderGanttControls();
   renderGanttChart();
+  saveChecksToGas();
 }
 
 function examTimeColor(examTime){
@@ -1083,6 +1103,11 @@ function renderGanttChart(){
 function renderSettings(){
   const input=document.getElementById('sheet-url-input');
   input.value=sheetUrl||'';
+  const gasInput=document.getElementById('gas-url-input');
+  if(gasInput) gasInput.value=gasUrl||'';
+  const gasStatusEl=document.getElementById('gas-status');
+  if(gasStatusEl) gasStatusEl.textContent=gasUrl?'✓ GAS URL設定済み':'';
+  if(gasStatusEl) gasStatusEl.style.color='var(--green)';
   // テーマボタンのスタイル更新
   const currentTheme = localStorage.getItem('jyuken_theme')||'dark';
   const darkBtn = document.getElementById('theme-dark-btn');
@@ -1283,7 +1308,51 @@ function importJSON(e){
   reader.readAsText(file);e.target.value='';
 }
 function dl(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
-function clearAll(){schools=[];saveLocal([]);saveSheetUrl('');sheetUrl='';nextId=1;renderHome();renderSettings();}
+function clearAll(){ schools=[]; saveLocal([]); saveSheetUrl(''); sheetUrl=''; saveGasUrl(''); gasUrl=''; nextId=1; renderHome(); renderSettings(); }
+
+function saveGasUrlFromInput(){
+  const url = document.getElementById('gas-url-input').value.trim();
+  const statusEl = document.getElementById('gas-status');
+  if(!url){ statusEl.style.color='var(--red)'; statusEl.textContent='URLを入力してください'; return; }
+  if(!url.includes('script.google.com/macros/s/')){ statusEl.style.color='var(--red)'; statusEl.textContent='GASのデプロイURLを入力してください'; return; }
+  saveGasUrl(url); gasUrl=url;
+  statusEl.style.color='var(--green)'; statusEl.textContent='✓ 保存しました';
+  renderSettings();
+}
+
+async function saveChecksToGas(){
+  if(!gasUrl) return;
+  try {
+    await fetch(gasUrl, {method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'ganttChecks',value:ganttChecks})});
+    await fetch(gasUrl, {method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'ganttSort',value:ganttSort})});
+  } catch(e){ console.log('GAS保存エラー（無視）:', e); }
+}
+
+async function loadChecksFromGas(sheetId){
+  if(!sheetId) return;
+  try {
+    const sid = encodeURIComponent('設定');
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${sid}`;
+    const res = await fetch(url);
+    if(!res.ok) return;
+    const text = await res.text();
+    const match = text.match(/google\.visualization\.Query\.setResponse\((.+)\);?\s*$/s);
+    if(!match) return;
+    const data = JSON.parse(match[1]);
+    const rows = (data.table && data.table.rows) || [];
+    rows.forEach(row => {
+      if(!row.c || !row.c[0] || !row.c[0].v) return;
+      const key = String(row.c[0].v);
+      const val = row.c[1] ? String(row.c[1].v||'') : '';
+      if(!val) return;
+      try {
+        const parsed = JSON.parse(val);
+        if(key === 'ganttChecks') Object.assign(ganttChecks, parsed);
+        if(key === 'ganttSort') ganttSort = parsed;
+      } catch(e){}
+    });
+  } catch(e){ console.log('設定読み込みエラー（無視）:', e); }
+}
 
 // ── チャート期間デフォルト管理 ──
 const GANTT_FROM_KEY = 'jyuken_gantt_from';
