@@ -720,6 +720,14 @@ function schoolCard(s){
 
 // ── ガント状態管理変数 ──
 let ganttChecks = {};
+
+// タイムゾーン安全な日付キー生成（YYYY-MM-DD）
+function dateKey(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 let ganttSort = 'school'; // 'school' | 'date'
 
 function setGanttSort(mode){
@@ -1027,7 +1035,7 @@ function renderGanttChart(){
 
     for(let i=0;i<DAYS;i++){
       const d = new Date(START); d.setDate(d.getDate()+i);
-      const key = d.toISOString().slice(0,10);
+      const key = dateKey(d);
       const wd=d.getDay(); const isToday=d.getTime()===todayD.getTime();
       const dayBg = isToday?'rgba(240,96,96,0.06)':wd===0||wd===6?'rgba(124,111,224,0.03)':'transparent';
 
