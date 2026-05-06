@@ -1089,7 +1089,7 @@ function renderGanttChart(){
         if(ev){
           const timeStr = ev.timeStr || '';
           const titleStr = `${s.name} 第${r.no}回 ${ev.type}${timeStr?' '+timeStr:''}`;
-          html+=`<div style="width:${SLOT_W}px;flex-shrink:0;height:${ROW_H}px;background:${ev.color};display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;color:#000;${border};overflow:hidden" title="${titleStr}"><div style="font-size:7px;line-height:1.1">${ev.lbl}</div>${timeStr?'<div style="font-size:${FS_TIME}px;line-height:1;opacity:0.8">'+timeStr+'</div>':''}</div>`;
+          html+=`<div style="width:${SLOT_W}px;flex-shrink:0;height:${ROW_H}px;background:${ev.color};display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;color:#000;${border};overflow:hidden" title="${titleStr}"><div style="font-size:font-size:${FS_CELL}px;line-height:1.1">${ev.lbl}</div>${timeStr?'<div style="font-size:7px;line-height:1;opacity:0.8">'+timeStr+'</div>':''}</div>`;
         } else {
           html+=`<div style="width:${SLOT_W}px;flex-shrink:0;height:${ROW_H}px;background:${dayBg};${border}"></div>`;
         }
