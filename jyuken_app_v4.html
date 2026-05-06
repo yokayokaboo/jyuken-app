@@ -174,6 +174,10 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   </div>
 
   <div class="page" id="page-gantt">
+    <!-- タイトル＋凡例 -->
+    <div style="margin-bottom:10px">
+      <div class="section-title" style="margin-bottom:0">入試スケジュール</div>
+    </div>
     <!-- コントロールパネル -->
     <div class="card" style="margin-bottom:10px">
       <div class="card-body" style="padding-top:14px;padding-bottom:14px">
@@ -189,15 +193,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
             <input type="date" id="gantt-to" class="form-input-sm" style="width:100%" onchange="renderGantt()">
           </div>
         </div>
-        <!-- 凡例 -->
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#7c6fe0"></div>申込</div>
-          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#f5c842"></div>受験(午前)</div>
-          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#e8962a"></div>受験(午後)</div>
-          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#c0501a"></div>受験(夜)</div>
-          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#4ade9a"></div>発表</div>
-          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#60a5f0"></div>手続</div>
-        </div>
+
         <!-- 学校・回チェックボックス -->
         <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">表示する学校・回</div>
         <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
@@ -255,6 +251,18 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
         <div style="display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border2)">
           <button id="theme-dark-btn" onclick="setTheme('dark')" style="padding:6px 14px;font-size:12px;font-family:'Noto Sans JP',sans-serif;border:none;cursor:pointer;transition:all .15s">🌙 ダーク</button>
           <button id="theme-light-btn" onclick="setTheme('light')" style="padding:6px 14px;font-size:12px;font-family:'Noto Sans JP',sans-serif;border:none;cursor:pointer;transition:all .15s">☀️ ライト</button>
+        </div>
+      </div>
+    </div>
+    <div class="section-title">チャート表示設定</div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="padding:14px 16px">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">チャートのフォントサイズ</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <input type="range" id="gantt-fontsize" min="8" max="16" step="1" value="10"
+            style="flex:1;accent-color:var(--accent)"
+            oninput="updateGanttFontSize(this.value)">
+          <span id="gantt-fontsize-label" style="font-size:13px;font-family:'DM Mono',monospace;color:var(--accent2);min-width:32px">10px</span>
         </div>
       </div>
     </div>
@@ -912,8 +920,13 @@ function renderGanttChart(){
   // スロット幅はDAY_Wを3等分（切り捨て）
   const SLOT_W = Math.max(6, Math.floor(DAY_W_RAW / SLOTS));
   const DAY_W  = SLOT_W * SLOTS;
-  const ROW_H  = 22;
+  const ROW_H  = Math.max(22, ganttFontSize * 2 + 4);
   const todayD = today();
+  // フォントサイズ事前計算（テンプレートリテラル内での${}ネストを避けるため）
+  const FS_LABEL  = ganttFontSize;                    // 学校名
+  const FS_SUB    = Math.max(7, ganttFontSize - 1);   // 回ラベル・日付
+  const FS_CELL   = Math.max(7, ganttFontSize - 1);   // セル内文字（験/発/手）
+  const FS_TIME   = Math.max(5, ganttFontSize - 4);   // セル内時刻（小さめ固定）
 
   // 表示対象の (school, round) ペアを収集
   // ソートモードに応じてtargetsを構築
@@ -951,6 +964,16 @@ function renderGanttChart(){
   const totalW = LABEL + DAYS * DAY_W;
   let html = `<div style="min-width:${totalW}px;font-family:'DM Mono',monospace">`;
 
+  // ── 凡例（月ラベルの直上） ──
+  html += `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0 6px;margin-left:${LABEL}px;border-bottom:1px solid var(--border);margin-bottom:4px">
+    <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text2)"><div style="width:8px;height:8px;border-radius:2px;background:#7c6fe0"></div>申込</div>
+    <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text2)"><div style="width:8px;height:8px;border-radius:2px;background:#f5c842"></div>受験(午前)</div>
+    <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text2)"><div style="width:8px;height:8px;border-radius:2px;background:#e8962a"></div>受験(午後)</div>
+    <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text2)"><div style="width:8px;height:8px;border-radius:2px;background:#c0501a"></div>受験(夜)</div>
+    <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text2)"><div style="width:8px;height:8px;border-radius:2px;background:#4ade9a"></div>発表</div>
+    <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text2)"><div style="width:8px;height:8px;border-radius:2px;background:#60a5f0"></div>手続</div>
+  </div>`;
+
   // ── ヘッダー行1: 月 ──
   html += `<div style="display:flex;margin-bottom:0px">
     <div style="width:${LABEL}px;flex-shrink:0"></div>`;
@@ -982,7 +1005,7 @@ function renderGanttChart(){
     const isToday = d.getTime()===todayD.getTime();
     const col = isToday?'var(--red)':isSat||isSun?'var(--accent2)':'var(--text3)';
     const fontW = isSat||isSun||isToday?'700':'400';
-    html += `<div style="width:${DAY_W}px;flex-shrink:0;font-size:9px;color:${col};font-weight:${fontW};text-align:center;border-right:1px solid var(--border)">${d.getDate()}</div>`;
+    html += `<div style="width:${DAY_W}px;flex-shrink:0;font-size:${FS_SUB}px;color:${col};font-weight:${fontW};text-align:center;border-right:1px solid var(--border)">${d.getDate()}</div>`;
   }
   html += '</div>';
 
@@ -1013,10 +1036,10 @@ function renderGanttChart(){
     const catTc = catTextColors[s.cat]||'var(--text3)';
     html += `<div style="width:${LABEL}px;flex-shrink:0;overflow:hidden;white-space:nowrap">
       <div style="display:flex;align-items:center;gap:3px;overflow:hidden">
-        <span style="font-size:10px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis">${s.name}</span>
-        <span style="font-size:8px;padding:1px 5px;border-radius:10px;background:${catBg};color:${catTc};white-space:nowrap;flex-shrink:0">${s.cat}</span>
+        <span style="font-size:${FS_LABEL}px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis">${s.name}</span>
+        <span style="font-size:${FS_SUB}px;padding:1px 5px;border-radius:10px;background:${catBg};color:${catTc};white-space:nowrap;flex-shrink:0">${s.cat}</span>
       </div>
-      <div style="font-size:9px;color:var(--text3)">${timeLabel2}</div>
+      <div style="font-size:${FS_SUB}px;color:var(--text3)">${timeLabel2}</div>
     </div>`;
 
     // イベントをキーとスロットにマッピング
@@ -1066,7 +1089,7 @@ function renderGanttChart(){
         if(ev){
           const timeStr = ev.timeStr || '';
           const titleStr = `${s.name} 第${r.no}回 ${ev.type}${timeStr?' '+timeStr:''}`;
-          html+=`<div style="width:${SLOT_W}px;flex-shrink:0;height:${ROW_H}px;background:${ev.color};display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;color:#000;${border};overflow:hidden" title="${titleStr}"><div style="font-size:7px;line-height:1.1">${ev.lbl}</div>${timeStr?'<div style="font-size:5px;line-height:1;opacity:0.8">'+timeStr+'</div>':''}</div>`;
+          html+=`<div style="width:${SLOT_W}px;flex-shrink:0;height:${ROW_H}px;background:${ev.color};display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;color:#000;${border};overflow:hidden" title="${titleStr}"><div style="font-size:7px;line-height:1.1">${ev.lbl}</div>${timeStr?'<div style="font-size:${FS_TIME}px;line-height:1;opacity:0.8">'+timeStr+'</div>':''}</div>`;
         } else {
           html+=`<div style="width:${SLOT_W}px;flex-shrink:0;height:${ROW_H}px;background:${dayBg};${border}"></div>`;
         }
@@ -1125,6 +1148,11 @@ function renderSettings(){
   const sto   = document.getElementById('setting-gantt-to');
   if(sfrom) sfrom.value = getGanttDefault(GANTT_FROM_KEY, '2027-01-10');
   if(sto)   sto.value   = getGanttDefault(GANTT_TO_KEY,   '2027-02-20');
+  // フォントサイズスライダー
+  const fsSlider = document.getElementById('gantt-fontsize');
+  const fsLabel = document.getElementById('gantt-fontsize-label');
+  if(fsSlider) fsSlider.value = ganttFontSize;
+  if(fsLabel) fsLabel.textContent = ganttFontSize + 'px';
   const statusArea=document.getElementById('conn-status-area');
   if(sheetUrl){
     statusArea.innerHTML=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:13px;color:var(--green)"><span class="connected-dot"></span>接続済み</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px;word-break:break-all">${sheetUrl}</div>`;
@@ -1371,6 +1399,21 @@ function saveGanttDefaults(){
   const gt = document.getElementById('gantt-to');
   if(gf && f) gf.value = f;
   if(gt && t) gt.value = t;
+}
+
+// ── チャートフォントサイズ管理 ──
+const GANTT_FONTSIZE_KEY = 'jyuken_gantt_fontsize';
+let ganttFontSize = parseInt(localStorage.getItem(GANTT_FONTSIZE_KEY)||'10');
+
+function updateGanttFontSize(val){
+  ganttFontSize = parseInt(val);
+  localStorage.setItem(GANTT_FONTSIZE_KEY, ganttFontSize);
+  const lbl = document.getElementById('gantt-fontsize-label');
+  if(lbl) lbl.textContent = ganttFontSize + 'px';
+  const slider = document.getElementById('gantt-fontsize');
+  if(slider) slider.value = ganttFontSize;
+  // チャートが表示中なら再描画
+  if(document.getElementById('page-gantt')?.classList.contains('active')) renderGanttChart();
 }
 
 // ── テーマ管理 ──
